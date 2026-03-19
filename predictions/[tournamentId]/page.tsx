@@ -51,7 +51,7 @@ export default function PredictionsPage() {
             pData.forEach((p: Prediction) => { predMap[p.match_id] = p; });
             setPredictions(predMap);
             setTournamentName(tData?.name ?? '');
-            setIsTournamentActive(tData?.is_active === 1);
+            setIsTournamentActive(tData?.is_active === 1 || tData?.is_active === true);
         } catch { /* ignore */ } finally { setLoading(false); }
     };
 
