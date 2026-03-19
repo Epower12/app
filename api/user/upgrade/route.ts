@@ -1,31 +1,35 @@
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import db from '@/lib/db';
+import db from '../../../../lib/db';
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
-    if (!session) {
+    if (!session || !session.user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Cast session user to include our custom types
+    const userId = (session.user as any).id;
 
     try {
         const { action } = await req.json();
 
         if (action === 'simulate_payment') {
-            db.prepare('UPDATE users SET is_paid = 1 WHERE id = ?').run(session.user.id);
+            await db.query('UPDATE users SET is_paid = true WHERE id = $1', [userId]);
             return NextResponse.json({ success: true, isPaid: true });
         }
 
         if (action === 'upgrade_premium') {
-            const user = db.prepare('SELECT is_paid FROM users WHERE id = ?').get(session.user.id) as { is_paid: number };
+            const { rows } = await db.query('SELECT is_paid FROM users WHERE id = $1', [userId]);
+            const user = rows[0] as { is_paid: boolean };
 
             if (!user || !user.is_paid) {
                 return NextResponse.json({ error: 'Payment required' }, { status: 400 });
             }
 
-            db.prepare("UPDATE users SET role = 'premium' WHERE id = ?").run(session.user.id);
+            await db.query("UPDATE users SET role = 'premium' WHERE id = $1", [userId]);
             return NextResponse.json({ success: true, role: 'premium' });
         }
 

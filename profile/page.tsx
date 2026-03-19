@@ -17,8 +17,24 @@ interface ProfileData {
     currentStreak: number;
     accuracy: number;
     totalPredictions: number;
-    leagues: any[];
-    achievements: any[];
+    leagues: League[];
+    achievements: Achievement[];
+}
+
+interface League {
+    id: string;
+    name: string;
+    participantCount: number;
+    rank: number;
+    totalPoints: number | string;
+}
+
+interface Achievement {
+    id: string;
+    name: string;
+    description: string;
+    iconUrl: string;
+    unlockedAt: string;
 }
 
 interface PredictionHistory {

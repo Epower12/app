@@ -18,24 +18,16 @@ export async function GET(request: Request) {
         const tournamentId = searchParams.get('tournamentId');
 
         if (matchId) {
-            // Get prediction for specific match
-            const prediction = db
-                .prepare('SELECT * FROM predictions WHERE match_id = ? AND user_id = ?')
-                .get(matchId, session.user.id);
-
-            return NextResponse.json(prediction || null);
+            const { rows } = await db.query('SELECT * FROM predictions WHERE match_id = $1 AND user_id = $2', [matchId, session.user.id]);
+            return NextResponse.json(rows[0] || null);
         }
 
         if (tournamentId) {
-            // Get all predictions for tournament
-            const predictions = db
-                .prepare(`
-          SELECT p.* FROM predictions p
-          INNER JOIN matches m ON p.match_id = m.id
-          WHERE m.tournament_id = ? AND p.user_id = ?
-        `)
-                .all(tournamentId, session.user.id);
-
+            const { rows: predictions } = await db.query(`
+                SELECT p.* FROM predictions p
+                INNER JOIN matches m ON p.match_id = m.id
+                WHERE m.tournament_id = $1 AND p.user_id = $2
+            `, [tournamentId, session.user.id]);
             return NextResponse.json(predictions);
         }
 
@@ -61,9 +53,8 @@ export async function POST(request: Request) {
         }
 
         // Get match details
-        const match = db
-            .prepare('SELECT * FROM matches WHERE id = ?')
-            .get(matchId) as any;
+        const { rows: matchRows } = await db.query('SELECT * FROM matches WHERE id = $1', [matchId]);
+        const match = matchRows[0] as any;
 
         if (!match) {
             return NextResponse.json({ error: 'Match not found' }, { status: 404 });
@@ -74,37 +65,47 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Cannot predict after match has started' }, { status: 400 });
         }
 
-        // Verify user is participant
-        const participant = db
-            .prepare('SELECT id FROM tournament_participants WHERE tournament_id = ? AND user_id = ?')
-            .get(match.tournament_id, session.user.id);
+        // Verify user is participant or auto-join if open
+        const { rows: participantRows } = await db.query('SELECT id FROM tournament_participants WHERE tournament_id = $1 AND user_id = $2', [match.tournament_id, session.user.id]);
+        const participant = participantRows[0];
 
         if (!participant) {
-            return NextResponse.json({ error: 'Not a participant of this tournament' }, { status: 403 });
+            const { rows: tournamentRows } = await db.query('SELECT league_type FROM tournaments WHERE id = $1', [match.tournament_id]);
+            const tournament = tournamentRows[0] as any;
+
+            if (tournament?.league_type === 'open') {
+                await db.query(
+                    'INSERT INTO tournament_participants (id, tournament_id, user_id) VALUES ($1, $2, $3)',
+                    [uuidv4(), match.tournament_id, session.user.id]
+                );
+            } else {
+                return NextResponse.json({ error: 'Not a participant of this tournament' }, { status: 403 });
+            }
         }
 
         // Check if prediction exists
-        const existing = db
-            .prepare('SELECT id FROM predictions WHERE match_id = ? AND user_id = ?')
-            .get(matchId, session.user.id) as any;
+        const { rows: existingRows } = await db.query('SELECT id FROM predictions WHERE match_id = $1 AND user_id = $2', [matchId, session.user.id]);
+        const existing = existingRows[0] as any;
 
         if (existing) {
             // Update existing prediction
-            db.prepare(
-                'UPDATE predictions SET team_a_score = ?, team_b_score = ?, updated_at = strftime(\'%s\', \'now\') WHERE id = ?'
-            ).run(teamAScore, teamBScore, existing.id);
+            await db.query(
+                'UPDATE predictions SET team_a_score = $1, team_b_score = $2, updated_at = CAST(EXTRACT(EPOCH FROM NOW()) AS INTEGER) WHERE id = $3',
+                [teamAScore, teamBScore, existing.id]
+            );
 
-            const prediction = db.prepare('SELECT * FROM predictions WHERE id = ?').get(existing.id);
-            return NextResponse.json(prediction);
+            const { rows: updatedRows } = await db.query('SELECT * FROM predictions WHERE id = $1', [existing.id]);
+            return NextResponse.json(updatedRows[0]);
         } else {
             // Create new prediction
             const predictionId = uuidv4();
-            db.prepare(
-                'INSERT INTO predictions (id, match_id, user_id, team_a_score, team_b_score) VALUES (?, ?, ?, ?, ?)'
-            ).run(predictionId, matchId, session.user.id, teamAScore, teamBScore);
+            await db.query(
+                'INSERT INTO predictions (id, match_id, user_id, team_a_score, team_b_score) VALUES ($1, $2, $3, $4, $5)',
+                [predictionId, matchId, session.user.id, teamAScore, teamBScore]
+            );
 
-            const prediction = db.prepare('SELECT * FROM predictions WHERE id = ?').get(predictionId);
-            return NextResponse.json(prediction, { status: 201 });
+            const { rows: newRows } = await db.query('SELECT * FROM predictions WHERE id = $1', [predictionId]);
+            return NextResponse.json(newRows[0], { status: 201 });
         }
     } catch (error) {
         console.error('Submit prediction error:', error);

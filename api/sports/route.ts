@@ -6,7 +6,7 @@ import { authOptions } from '../auth/[...nextauth]/route';
 
 export async function GET() {
     try {
-        const sports = db.prepare('SELECT * FROM sports ORDER BY name ASC').all();
+        const { rows: sports } = await db.query('SELECT * FROM sports ORDER BY name ASC');
         return NextResponse.json(sports);
     } catch (error) {
         console.error('Get sports error:', error);
@@ -27,13 +27,15 @@ export async function POST(request: Request) {
         }
 
         // Check if exists
-        const existing = db.prepare('SELECT id FROM sports WHERE LOWER(name) = LOWER(?)').get(name);
+        const { rows } = await db.query('SELECT id FROM sports WHERE LOWER(name) = LOWER($1)', [name]);
+        const existing = rows[0];
+
         if (existing) {
             return NextResponse.json(existing);
         }
 
         const id = uuidv4();
-        db.prepare('INSERT INTO sports (id, name) VALUES (?, ?)').run(id, name);
+        await db.query('INSERT INTO sports (id, name) VALUES ($1, $2)', [id, name]);
 
         return NextResponse.json({ id, name }, { status: 201 });
     } catch (error) {

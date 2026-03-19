@@ -13,51 +13,38 @@ export async function PATCH(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { name, sport } = await request.json();
-        const { id: tournamentId } = await params;
+        const role = (session.user as any).role;
+        const email = (session.user as any).email;
+        const isOwner = email === process.env.NEXT_PUBLIC_OWNER_EMAIL;
 
-        // Check ownership
-        const tournament = db.prepare('SELECT created_by FROM tournaments WHERE id = ?').get(tournamentId) as { created_by: string } | undefined;
+        if (role !== 'admin' && role !== 'premium' && !isOwner) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
+        const { id } = await params;
+        const { is_active } = await request.json();
+
+        if (is_active === undefined) {
+            return NextResponse.json({ error: 'Missing is_active field' }, { status: 400 });
+        }
+
+        // Verify tournament exists and user has rights (creator, admin, or owner)
+        const { rows } = await db.query('SELECT created_by FROM tournaments WHERE id = $1', [id]);
+        const tournament = rows[0] as any;
         if (!tournament) {
             return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
         }
 
-        if (tournament.created_by !== (session.user as any).id && (session.user as any).role !== 'admin') {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (!isOwner && role !== 'admin' && tournament.created_by !== (session.user as any).id) {
+            return NextResponse.json({ error: 'You can only edit your own tournaments' }, { status: 403 });
         }
 
-        const updates: string[] = [];
-        const values: any[] = [];
+        await db.query('UPDATE tournaments SET is_active = $1 WHERE id = $2', [is_active ? true : false, id]);
 
-        if (name) {
-            updates.push('name = ?');
-            values.push(name);
-        }
-        if (sport) {
-            updates.push('sport = ?');
-            values.push(sport);
-        }
+        return NextResponse.json({ success: true, is_active: !!is_active });
 
-        if (updates.length === 0) {
-            return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
-        }
-
-        values.push(tournamentId);
-
-        const updateTournament = db.transaction((updatesStr: string, vals: any[], sportName: string | undefined, tId: string) => {
-            db.prepare(`UPDATE tournaments SET ${updatesStr} WHERE id = ?`).run(...vals);
-            if (sportName) {
-                db.prepare('UPDATE matches SET sport = ? WHERE tournament_id = ?').run(sportName, tId);
-            }
-        });
-
-        updateTournament(updates.join(', '), values, sport, tournamentId);
-
-        const updatedTournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tournamentId);
-        return NextResponse.json(updatedTournament);
     } catch (error) {
-        console.error('Update tournament error:', error);
+        console.error('Update tournament status error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

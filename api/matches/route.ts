@@ -20,17 +20,20 @@ export async function GET(request: Request) {
         }
 
         // Verify user is participant
-        const participant = db
-            .prepare('SELECT id FROM tournament_participants WHERE tournament_id = ? AND user_id = ?')
-            .get(tournamentId, session.user.id);
+        const { rows: participantRows } = await db.query(
+            'SELECT id FROM tournament_participants WHERE tournament_id = $1 AND user_id = $2',
+            [tournamentId, session.user.id]
+        );
+        const participant = participantRows[0];
 
         if (!participant) {
             return NextResponse.json({ error: 'Not a participant of this tournament' }, { status: 403 });
         }
 
-        const matches = db
-            .prepare('SELECT * FROM matches WHERE tournament_id = ? ORDER BY scheduled_time ASC')
-            .all(tournamentId);
+        const { rows: matches } = await db.query(
+            'SELECT * FROM matches WHERE tournament_id = $1 ORDER BY scheduled_time ASC',
+            [tournamentId]
+        );
 
         return NextResponse.json(matches);
     } catch (error) {
@@ -58,20 +61,24 @@ export async function POST(request: Request) {
         }
 
         // Verify tournament exists and user created it
-        const tournament = db
-            .prepare('SELECT * FROM tournaments WHERE id = ? AND created_by = ?')
-            .get(tournamentId, session.user.id) as any;
+        const { rows: tournamentRows } = await db.query(
+            'SELECT * FROM tournaments WHERE id = $1 AND created_by = $2',
+            [tournamentId, session.user.id]
+        );
+        const tournament = tournamentRows[0] as any;
 
         if (!tournament) {
             return NextResponse.json({ error: 'Tournament not found or not authorized' }, { status: 404 });
         }
 
         const matchId = uuidv4();
-        db.prepare(
-            'INSERT INTO matches (id, tournament_id, team_a, team_b, scheduled_time, sport) VALUES (?, ?, ?, ?, ?, ?)'
-        ).run(matchId, tournamentId, teamA, teamB, scheduledTime, sport || tournament.sport || 'Football');
+        await db.query(
+            'INSERT INTO matches (id, tournament_id, team_a, team_b, scheduled_time, sport) VALUES ($1, $2, $3, $4, $5, $6)',
+            [matchId, tournamentId, teamA, teamB, scheduledTime, sport || tournament.sport || 'Football']
+        );
 
-        const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+        const { rows: newMatchRows } = await db.query('SELECT * FROM matches WHERE id = $1', [matchId]);
+        const match = newMatchRows[0];
 
         return NextResponse.json(match, { status: 201 });
     } catch (error) {

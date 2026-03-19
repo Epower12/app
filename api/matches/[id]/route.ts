@@ -22,38 +22,28 @@ export async function PATCH(
         const updates = await request.json();
 
         // Get match and verify ownership
-        const match = db.prepare(`
-      SELECT m.*, t.created_by 
-      FROM matches m
-      INNER JOIN tournaments t ON m.tournament_id = t.id
-      WHERE m.id = ?
-    `).get(matchId) as any;
+        const { rows: matchRows } = await db.query(`
+            SELECT m.*, t.created_by 
+            FROM matches m
+            INNER JOIN tournaments t ON m.tournament_id = t.id
+            WHERE m.id = $1
+        `, [matchId]);
+        const match = matchRows[0] as any;
 
         if (!match) {
             return NextResponse.json({ error: 'Match not found' }, { status: 404 });
         }
 
-        // Relaxed authorization: any admin can update any match
-        /* 
-        if (match.created_by !== session.user.id) {
-            return NextResponse.json({ error: 'Not authorized to update this match' }, { status: 403 });
-        }
-        */
-
         // Build update query
         const allowedFields = ['team_a', 'team_b', 'scheduled_time', 'team_a_score', 'team_b_score', 'is_finished', 'sport'];
         const updateFields: string[] = [];
         const values: any[] = [];
+        let paramIndex = 1;
 
         for (const [key, value] of Object.entries(updates)) {
             if (allowedFields.includes(key)) {
-                updateFields.push(`${key} = ?`);
-                // SQLite (better-sqlite3) doesn't handle booleans well, convert to 0/1
-                if (typeof value === 'boolean') {
-                    values.push(value ? 1 : 0);
-                } else {
-                    values.push(value);
-                }
+                updateFields.push(`${key} = $${paramIndex++}`);
+                values.push(value);
             }
         }
 
@@ -63,15 +53,14 @@ export async function PATCH(
 
         values.push(matchId);
         try {
-            db.prepare(`UPDATE matches SET ${updateFields.join(', ')} WHERE id = ?`).run(...values);
+            await db.query(`UPDATE matches SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`, values);
         } catch (dbError: any) {
             console.error('Database update error detail:', dbError);
             return NextResponse.json({ error: `Database update failed: ${dbError.message}` }, { status: 500 });
         }
 
-        const updatedMatch = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
-
-        return NextResponse.json(updatedMatch);
+        const { rows: updatedRows } = await db.query('SELECT * FROM matches WHERE id = $1', [matchId]);
+        return NextResponse.json(updatedRows[0]);
     } catch (error: any) {
         console.error('Update match API error:', error);
         return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 });
@@ -96,12 +85,13 @@ export async function DELETE(
         const { id: matchId } = await params;
 
         // Get match and verify ownership
-        const match = db.prepare(`
-      SELECT m.*, t.created_by 
-      FROM matches m
-      INNER JOIN tournaments t ON m.tournament_id = t.id
-      WHERE m.id = ?
-    `).get(matchId) as any;
+        const { rows: matchRows } = await db.query(`
+            SELECT m.*, t.created_by 
+            FROM matches m
+            INNER JOIN tournaments t ON m.tournament_id = t.id
+            WHERE m.id = $1
+        `, [matchId]);
+        const match = matchRows[0] as any;
 
         if (!match) {
             return NextResponse.json({ error: 'Match not found' }, { status: 404 });
@@ -111,7 +101,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Not authorized to delete this match' }, { status: 403 });
         }
 
-        db.prepare('DELETE FROM matches WHERE id = ?').run(matchId);
+        await db.query('DELETE FROM matches WHERE id = $1', [matchId]);
 
         return NextResponse.json({ message: 'Match deleted successfully' });
     } catch (error) {

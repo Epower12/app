@@ -11,10 +11,24 @@ export default function SignupPage() {
         email: '',
         password: '',
         confirmPassword: '',
-        role: 'user' as 'admin' | 'user',
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const getStrength = (pw: string) => {
+        if (!pw) return 0;
+        let s = 0;
+        if (pw.length >= 8) s++;
+        if (/[A-Z]/.test(pw)) s++;
+        if (/[0-9]/.test(pw)) s++;
+        if (/[^A-Za-z0-9]/.test(pw)) s++;
+        return s;
+    };
+
+    const strength = getStrength(formData.password);
+    const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][strength];
+    const strengthColors = ['', '#f5576c', '#fa709a', '#4facfe', '#00f2fe'];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -24,14 +38,12 @@ export default function SignupPage() {
             setError('Passwords do not match');
             return;
         }
-
         if (formData.password.length < 6) {
             setError('Password must be at least 6 characters');
             return;
         }
 
         setLoading(true);
-
         try {
             const response = await fetch('/api/auth/signup', {
                 method: 'POST',
@@ -40,122 +52,159 @@ export default function SignupPage() {
                     username: formData.username,
                     email: formData.email,
                     password: formData.password,
-                    role: formData.role,
+                    role: 'user',
                 }),
             });
-
             const data = await response.json();
-
             if (!response.ok) {
                 setError(data.error || 'Failed to create account');
             } else {
                 router.push('/login');
             }
-        } catch (err) {
+        } catch {
             setError('An error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
+    const perks = [
+        '🌍 Multi-sport predictions',
+        '📊 Smart points system',
+        '🏅 Live leaderboards',
+        '🎯 Track your accuracy',
+    ];
+
     return (
-        <div className="flex items-center justify-center" style={{ minHeight: '100vh', padding: '2rem' }}>
-            <div className="card" style={{ maxWidth: '450px', width: '100%' }}>
-                <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-lg)' }}>
-                    <h1 className="page-title" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-                        Create Account
-                    </h1>
-                    <p className="text-muted">Join the prediction league</p>
-                </div>
-
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="username">
-                            Username
-                        </label>
-                        <input
-                            id="username"
-                            type="text"
-                            className="input"
-                            placeholder="Choose a username"
-                            value={formData.username}
-                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                            required
-                        />
+        <div className="auth-split auth-split-reverse">
+            {/* ---- Right Form Panel ---- */}
+            <div className="auth-form-panel">
+                <div className="auth-form-inner">
+                    <div className="auth-form-header">
+                        <h1 className="auth-form-title">Create account</h1>
+                        <p className="auth-form-subtitle">It&apos;s free — no credit card needed</p>
                     </div>
 
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="email">
-                            Email
-                        </label>
-                        <input
-                            id="email"
-                            type="email"
-                            className="input"
-                            placeholder="Enter your email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="password">
-                            Password
-                        </label>
-                        <input
-                            id="password"
-                            type="password"
-                            className="input"
-                            placeholder="Create a password"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="confirmPassword">
-                            Confirm Password
-                        </label>
-                        <input
-                            id="confirmPassword"
-                            type="password"
-                            className="input"
-                            placeholder="Confirm your password"
-                            value={formData.confirmPassword}
-                            onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                            required
-                        />
-                    </div>
-
-                    {error && (
-                        <div
-                            style={{
-                                padding: 'var(--spacing-sm)',
-                                background: 'rgba(245, 87, 108, 0.1)',
-                                border: '1px solid rgba(245, 87, 108, 0.3)',
-                                borderRadius: 'var(--radius-sm)',
-                                color: '#f5576c',
-                                marginBottom: 'var(--spacing-md)',
-                                fontSize: '0.875rem',
-                            }}
-                        >
-                            {error}
+                    <form onSubmit={handleSubmit} className="auth-form">
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="username">Username</label>
+                            <input
+                                id="username"
+                                type="text"
+                                className="input auth-input"
+                                placeholder="predictor99"
+                                value={formData.username}
+                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                required
+                            />
                         </div>
-                    )}
 
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-                        {loading ? 'Creating account...' : 'Sign Up'}
-                    </button>
-                </form>
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="email">Email address</label>
+                            <input
+                                id="email"
+                                type="email"
+                                className="input auth-input"
+                                placeholder="you@example.com"
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                required
+                            />
+                        </div>
 
-                <div style={{ marginTop: 'var(--spacing-lg)', textAlign: 'center' }}>
-                    <p className="text-muted" style={{ fontSize: '0.875rem' }}>
-                        Already have an account?{' '}
-                        <Link href="/login" style={{ color: '#667eea', fontWeight: 600 }}>
-                            Sign in
-                        </Link>
+                        <div className="form-group" style={{ position: 'relative' }}>
+                            <label className="form-label" htmlFor="password">Password</label>
+                            <input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                className="input auth-input"
+                                placeholder="Min. 6 characters"
+                                value={formData.password}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                required
+                                style={{ paddingRight: '3rem' }}
+                            />
+                            <button
+                                type="button"
+                                className="auth-pw-toggle"
+                                onClick={() => setShowPassword(!showPassword)}
+                            >
+                                {showPassword ? '🙈' : '👁️'}
+                            </button>
+                            {formData.password && (
+                                <div className="pw-strength-bar">
+                                    {[1, 2, 3, 4].map(i => (
+                                        <div
+                                            key={i}
+                                            className="pw-strength-segment"
+                                            style={{
+                                                background: i <= strength ? strengthColors[strength] : 'var(--border-color)',
+                                            }}
+                                        />
+                                    ))}
+                                    <span className="pw-strength-label" style={{ color: strengthColors[strength] }}>
+                                        {strengthLabel}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="confirm">Confirm Password</label>
+                            <input
+                                id="confirm"
+                                type="password"
+                                className="input auth-input"
+                                placeholder="••••••••"
+                                value={formData.confirmPassword}
+                                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        {error && <div className="auth-error">{error}</div>}
+
+                        <button
+                            type="submit"
+                            className="btn btn-primary auth-submit-btn"
+                            disabled={loading}
+                        >
+                            {loading ? '⏳ Creating...' : <>Create Free Account <span className="btn-arrow">→</span></>}
+                        </button>
+                    </form>
+
+                    <div className="auth-form-footer">
+                        <p>
+                            Already have an account?{' '}
+                            <Link href="/login" className="auth-link">Sign in</Link>
+                        </p>
+                        <Link href="/" className="auth-link-muted">← Back to home</Link>
+                    </div>
+                </div>
+            </div>
+
+            {/* ---- Left Visual Panel ---- */}
+            <div className="auth-visual">
+                <div className="auth-visual-orbs">
+                    <div className="av-orb av-orb-1" />
+                    <div className="av-orb av-orb-2" />
+                    <div className="av-orb av-orb-3" />
+                </div>
+                <div className="auth-visual-content">
+                    <div className="auth-visual-logo">
+                        <span>⚽</span>
+                        <span className="auth-visual-logo-text">SportPredict</span>
+                    </div>
+                    <h2 className="auth-visual-headline">
+                        Join the<br />prediction<br /><span className="gradient-text">arena.</span>
+                    </h2>
+                    <ul className="auth-perks">
+                        {perks.map((p, i) => (
+                            <li key={i} className="auth-perk">{p}</li>
+                        ))}
+                    </ul>
+                    <p className="auth-visual-sub" style={{ marginTop: '2rem' }}>
+                        Already thousands of fans compete daily. Your predictions start today.
                     </p>
                 </div>
             </div>

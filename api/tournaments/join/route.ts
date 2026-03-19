@@ -19,18 +19,16 @@ export async function POST(request: Request) {
         }
 
         // Find tournament by join code
-        const tournament = db
-            .prepare('SELECT * FROM tournaments WHERE join_code = ? AND is_active = 1')
-            .get(joinCode.toUpperCase());
+        const { rows: tournamentRows } = await db.query('SELECT * FROM tournaments WHERE join_code = $1 AND is_active = true', [joinCode.toUpperCase()]);
+        const tournament = tournamentRows[0];
 
         if (!tournament) {
             return NextResponse.json({ error: 'Invalid or inactive tournament code' }, { status: 404 });
         }
 
         // Check if already joined
-        const existing = db
-            .prepare('SELECT id FROM tournament_participants WHERE tournament_id = ? AND user_id = ?')
-            .get((tournament as any).id, session.user.id);
+        const { rows: existingRows } = await db.query('SELECT id FROM tournament_participants WHERE tournament_id = $1 AND user_id = $2', [(tournament as any).id, session.user.id]);
+        const existing = existingRows[0];
 
         if (existing) {
             return NextResponse.json({ error: 'Already joined this tournament' }, { status: 409 });
@@ -38,9 +36,10 @@ export async function POST(request: Request) {
 
         // Add participant
         const participantId = uuidv4();
-        db.prepare(
-            'INSERT INTO tournament_participants (id, tournament_id, user_id) VALUES (?, ?, ?)'
-        ).run(participantId, (tournament as any).id, session.user.id);
+        await db.query(
+            'INSERT INTO tournament_participants (id, tournament_id, user_id) VALUES ($1, $2, $3)',
+            [participantId, (tournament as any).id, session.user.id]
+        );
 
         return NextResponse.json({ message: 'Joined tournament successfully', tournament }, { status: 201 });
     } catch (error) {

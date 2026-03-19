@@ -17,9 +17,8 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
-                const user = db
-                    .prepare('SELECT * FROM users WHERE email = ?')
-                    .get(credentials.username) as (User & { password: string, email: string, is_paid: number }) | undefined;
+                const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [credentials.username]);
+                const user = rows[0] as (User & { password: string, email: string, is_paid: boolean }) | undefined;
 
                 if (!user) {
                     return null;

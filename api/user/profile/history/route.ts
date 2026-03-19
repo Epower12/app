@@ -13,7 +13,7 @@ export async function GET() {
 
         const userId = (session.user as any).id;
 
-        const history = db.prepare(`
+        const { rows: history } = await db.query(`
             SELECT 
                 p.id,
                 p.team_a_score as predA,
@@ -30,10 +30,10 @@ export async function GET() {
             FROM predictions p
             JOIN matches m ON p.match_id = m.id
             JOIN tournaments t ON m.tournament_id = t.id
-            WHERE p.user_id = ?
+            WHERE p.user_id = $1
             ORDER BY m.scheduled_time DESC
             LIMIT 50
-        `).all(userId) as any[];
+        `, [userId]);
 
         const formattedHistory = history.map(item => {
             const points = item.isFinished

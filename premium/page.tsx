@@ -12,6 +12,9 @@ interface Tournament {
     created_at: number;
     is_active: boolean;
     sport: string;
+    league_type: string;
+    description: string;
+    max_participants: number;
 }
 
 interface Match {
@@ -44,6 +47,9 @@ export default function PremiumPage() {
     const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null);
     const [newTournamentName, setNewTournamentName] = useState('');
     const [newTournamentSport, setNewTournamentSport] = useState('Football');
+    const [newTournamentLeagueType, setNewTournamentLeagueType] = useState('open');
+    const [newTournamentDesc, setNewTournamentDesc] = useState('');
+    const [newTournamentMax, setNewTournamentMax] = useState(0);
     const [customSport, setCustomSport] = useState('');
     const [editTournamentName, setEditTournamentName] = useState('');
     const [editTournamentSport, setEditTournamentSport] = useState('');
@@ -59,7 +65,7 @@ export default function PremiumPage() {
     });
 
     useEffect(() => {
-        console.log('Premium Page Access Check:', { status, role: session?.user?.role });
+        console.log('Premium Page Access Check:', { status, role: (session?.user as any)?.role });
         if (status === 'loading') return;
 
         if (status === 'unauthenticated') {
@@ -160,10 +166,19 @@ export default function PremiumPage() {
             const res = await fetch('/api/tournaments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newTournamentName, sport: sportToSave }),
+                body: JSON.stringify({
+                    name: newTournamentName,
+                    sport: sportToSave,
+                    league_type: newTournamentLeagueType,
+                    description: newTournamentDesc,
+                    max_participants: newTournamentMax
+                }),
             });
             if (res.ok) {
                 setNewTournamentName('');
+                setNewTournamentLeagueType('open');
+                setNewTournamentDesc('');
+                setNewTournamentMax(0);
                 setShowNewTournament(false);
                 fetchTournaments();
             }
@@ -194,6 +209,26 @@ export default function PremiumPage() {
             }
         } catch (error) {
             console.error('Failed to update tournament:', error);
+        }
+    };
+
+    const toggleTournamentStatus = async (tournamentId: string, currentStatus: boolean) => {
+        if (!confirm(`Are you sure you want to ${currentStatus ? 'close' : 'reopen'} this tournament? ${currentStatus ? 'No one will be able to make new predictions.' : ''}`)) return;
+
+        try {
+            const res = await fetch(`/api/tournaments/${tournamentId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: !currentStatus }),
+            });
+            if (res.ok) {
+                fetchTournaments();
+            } else {
+                const data = await res.json();
+                alert(`Failed to update tournament status: ${data.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Failed to update tournament status:', error);
         }
     };
 
@@ -300,28 +335,48 @@ export default function PremiumPage() {
 
                     {showNewTournament && (
                         <form onSubmit={createTournament} className="mb-2">
-                            <div className="form-group">
-                                <input
-                                    type="text"
-                                    className="input"
-                                    placeholder="Tournament name"
-                                    value={newTournamentName}
-                                    onChange={(e) => setNewTournamentName(e.target.value)}
-                                    required
-                                />
+                            <div className="grid grid-2">
+                                <div className="form-group">
+                                    <label className="form-label" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>League Name</label>
+                                    <input
+                                        type="text"
+                                        className="input"
+                                        placeholder="Tournament name"
+                                        value={newTournamentName}
+                                        onChange={(e) => setNewTournamentName(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Sport</label>
+                                    <select
+                                        className="input"
+                                        value={newTournamentSport}
+                                        onChange={(e) => setNewTournamentSport(e.target.value)}
+                                    >
+                                        {sports.map((sport) => (
+                                            <option key={sport.id} value={sport.name}>{sport.name}</option>
+                                        ))}
+                                        <option value="Add New Sport...">+ Add New Sport...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-2">
+                                <div className="form-group">
+                                    <label className="form-label" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>League Type</label>
+                                    <select className="input" value={newTournamentLeagueType} onChange={e => setNewTournamentLeagueType(e.target.value)}>
+                                        <option value="open">🌍 Open (Public)</option>
+                                        <option value="private">🔒 Private (Invite Code)</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Max Participants (0 = no limit)</label>
+                                    <input type="number" className="input" min="0" value={newTournamentMax} onChange={e => setNewTournamentMax(parseInt(e.target.value) || 0)} />
+                                </div>
                             </div>
                             <div className="form-group">
-                                <label className="form-label" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Sport</label>
-                                <select
-                                    className="input"
-                                    value={newTournamentSport}
-                                    onChange={(e) => setNewTournamentSport(e.target.value)}
-                                >
-                                    {sports.map((sport) => (
-                                        <option key={sport.id} value={sport.name}>{sport.name}</option>
-                                    ))}
-                                    <option value="Add New Sport...">+ Add New Sport...</option>
-                                </select>
+                                <label className="form-label" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Description (optional)</label>
+                                <textarea className="input" rows={2} value={newTournamentDesc} onChange={e => setNewTournamentDesc(e.target.value)} placeholder="Short description..." />
                             </div>
                             {newTournamentSport === 'Add New Sport...' && (
                                 <div className="form-group">
@@ -398,19 +453,39 @@ export default function PremiumPage() {
                                 ) : (
                                     <>
                                         <div className="flex justify-between items-start">
-                                            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>{tournament.name}</h3>
-                                            <button
-                                                className="btn btn-secondary btn-sm"
-                                                style={{ padding: '2px 8px' }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingTournamentId(tournament.id);
-                                                    setEditTournamentName(tournament.name);
-                                                    setEditTournamentSport(tournament.sport);
-                                                }}
-                                            >
-                                                ✏️
-                                            </button>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>{tournament.name}</h3>
+                                                {!tournament.is_active && (
+                                                    <span style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, border: '1px solid var(--border-color)', marginBottom: '0.5rem' }}>
+                                                        🏁 CLOSED
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    style={{ padding: '2px 8px' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleTournamentStatus(tournament.id, tournament.is_active);
+                                                    }}
+                                                    title={tournament.is_active ? 'Close Tournament' : 'Reopen Tournament'}
+                                                >
+                                                    {tournament.is_active ? '🔒' : '🔓'}
+                                                </button>
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    style={{ padding: '2px 8px' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingTournamentId(tournament.id);
+                                                        setEditTournamentName(tournament.name);
+                                                        setEditTournamentSport(tournament.sport);
+                                                    }}
+                                                >
+                                                    ✏️
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <div className="flex gap-1 items-center">

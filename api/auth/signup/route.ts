@@ -16,9 +16,8 @@ export async function POST(request: Request) {
         }
 
         // Check if username or email already exists
-        const existingUser = db
-            .prepare('SELECT id FROM users WHERE username = ? OR email = ?')
-            .get(username, email);
+        const { rows } = await db.query('SELECT id FROM users WHERE username = $1 OR email = $2', [username, email]);
+        const existingUser = rows[0];
 
         if (existingUser) {
             return NextResponse.json(
@@ -32,9 +31,10 @@ export async function POST(request: Request) {
 
         // Create user
         const userId = uuidv4();
-        db.prepare(
-            'INSERT INTO users (id, username, email, password, role) VALUES (?, ?, ?, ?, ?)'
-        ).run(userId, username, email, hashedPassword, role);
+        await db.query(
+            'INSERT INTO users (id, username, email, password, role) VALUES ($1, $2, $3, $4, $5)',
+            [userId, username, email, hashedPassword, role]
+        );
 
         return NextResponse.json(
             { message: 'User created successfully', userId },

@@ -4,19 +4,14 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Navbar from '../../components/Navbar';
 
 interface LeaderboardEntry {
-    userId: string;
-    username: string;
-    totalPoints: number;
+    userId: string; username: string; totalPoints: number;
     predictions: {
-        matchId: string;
-        teamA: string;
-        teamB: string;
-        predictedScoreA: number;
-        predictedScoreB: number;
-        actualScoreA: number | null;
-        actualScoreB: number | null;
+        matchId: string; teamA: string; teamB: string;
+        predictedScoreA: number; predictedScoreB: number;
+        actualScoreA: number | null; actualScoreB: number | null;
         points: number;
     }[];
 }
@@ -27,168 +22,144 @@ export default function LeaderboardPage() {
     const params = useParams();
     const tournamentId = params.tournamentId as string;
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+    const [tournamentName, setTournamentName] = useState('');
     const [loading, setLoading] = useState(true);
-    const [hoveredUser, setHoveredUser] = useState<string | null>(null);
+    const [expanded, setExpanded] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (status === 'unauthenticated') {
-            router.push('/login');
-        }
-    }, [status, router]);
+    useEffect(() => { if (status === 'unauthenticated') router.push('/login'); }, [status, router]);
 
     useEffect(() => {
         if (session && tournamentId) {
-            fetchLeaderboard();
+            fetch(`/api/leaderboard/${tournamentId}`).then(r => r.json()).then(setLeaderboard).catch(() => { }).finally(() => setLoading(false));
+            fetch(`/api/tournaments?id=${tournamentId}`).then(r => r.json()).then(d => setTournamentName(d?.name ?? ''));
         }
     }, [session, tournamentId]);
 
-    const fetchLeaderboard = async () => {
-        try {
-            const res = await fetch(`/api/leaderboard/${tournamentId}`);
-            const data = await res.json();
-            setLeaderboard(data);
-        } catch (error) {
-            console.error('Failed to fetch leaderboard:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const myId = (session?.user as any)?.id;
+
+    const top3 = leaderboard.slice(0, 3);
+    const rest = leaderboard.slice(3);
+
+    // Podium order: 2nd, 1st, 3rd (display left→right)
+    const podiumOrder = top3.length >= 2
+        ? [top3[1], top3[0], top3[2]].filter(Boolean)
+        : top3;
 
     if (status === 'loading' || loading) {
-        return <div className="container" style={{ paddingTop: '4rem' }}><div className="loading" style={{ height: '200px', borderRadius: 'var(--radius-lg)' }}></div></div>;
+        return (
+            <div className="app-page"><Navbar />
+                <div className="container" style={{ paddingTop: '2rem' }}>
+                    <div className="loading" style={{ height: '250px', borderRadius: 'var(--radius-lg)' }} />
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="container" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
-            <div className="flex justify-between items-center mb-3">
-                <h1 className="page-title" style={{ fontSize: '2.5rem', marginBottom: 0 }}>Leaderboard</h1>
-                <Link href="/tournaments" className="btn btn-secondary">Back to Tournaments</Link>
-            </div>
+        <div className="app-page">
+            <Navbar />
+            <div className="container">
+                {/* Header */}
+                <div className="app-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h1 className="app-page-title">📊 Rankings</h1>
+                        {tournamentName && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{tournamentName}</p>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">🎯 Predict</Link>
+                        <Link href="/tournaments" className="btn btn-secondary">← Leagues</Link>
+                    </div>
+                </div>
 
-            <div className="card">
                 {leaderboard.length === 0 ? (
-                    <div className="text-center">
-                        <p className="text-muted" style={{ fontSize: '1.125rem' }}>
-                            No predictions yet. Be the first to make a prediction!
-                        </p>
+                    <div className="empty-state">
+                        <div className="empty-state-icon">📊</div>
+                        <h3>No predictions yet</h3>
+                        <p>Be the first to make a prediction and claim the top spot!</p>
+                        <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Make a Prediction</Link>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
-                        {leaderboard.map((entry, index) => (
-                            <div
-                                key={entry.userId}
-                                className="tooltip"
-                                onMouseEnter={() => setHoveredUser(entry.userId)}
-                                onMouseLeave={() => setHoveredUser(null)}
-                            >
-                                <div
-                                    className="card"
-                                    style={{
-                                        padding: 'var(--spacing-md)',
-                                        background: index === 0 ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)' :
-                                            index === 1 ? 'linear-gradient(135deg, rgba(74, 172, 254, 0.15) 0%, rgba(0, 242, 254, 0.15) 100%)' :
-                                                index === 2 ? 'linear-gradient(135deg, rgba(250, 112, 154, 0.15) 0%, rgba(254, 225, 64, 0.15) 100%)' :
-                                                    'var(--bg-card)',
-                                        border: session?.user.id === entry.userId ? '2px solid #667eea' : '1px solid var(--border-color)',
-                                    }}
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                style={{
-                                                    width: '40px',
-                                                    height: '40px',
-                                                    borderRadius: '50%',
-                                                    background: index === 0 ? 'linear-gradient(135deg, #FFD700, #FFA500)' :
-                                                        index === 1 ? 'linear-gradient(135deg, #C0C0C0, #808080)' :
-                                                            index === 2 ? 'linear-gradient(135deg, #CD7F32, #8B4513)' :
-                                                                'var(--bg-tertiary)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontSize: '1.25rem',
-                                                    fontWeight: 800,
-                                                }}
-                                            >
-                                                {index < 3 ? ['🥇', '🥈', '🥉'][index] : index + 1}
+                    <>
+                        {/* --- Podium --- */}
+                        {top3.length >= 2 && (
+                            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', padding: '2rem', marginBottom: '2rem' }}>
+                                <div className="podium-section">
+                                    {podiumOrder.map((entry, idx) => {
+                                        const rank = leaderboard.indexOf(entry);
+                                        const barClass = `podium-bar podium-bar-${rank + 1}`;
+                                        const avatarClass = `podium-avatar podium-avatar-${rank + 1}`;
+                                        const medals = ['🥇', '🥈', '🥉'];
+                                        return (
+                                            <div key={entry.userId} className="podium-item">
+                                                <div className={avatarClass}>{medals[rank]}</div>
+                                                <div className="podium-name">{entry.username}</div>
+                                                <div className="podium-points">{entry.totalPoints} pts</div>
+                                                <div className={barClass}>#{rank + 1}</div>
                                             </div>
-                                            <div>
-                                                <div style={{ fontSize: '1.125rem', fontWeight: 700 }}>
-                                                    {entry.username}
-                                                    {session?.user.id === entry.userId && (
-                                                        <span className="badge badge-primary" style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }}>You</span>
-                                                    )}
-                                                </div>
-                                                <div className="text-muted" style={{ fontSize: '0.875rem' }}>
-                                                    {entry.predictions.filter(p => p.actualScoreA !== null).length} predictions scored
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontSize: '2rem', fontWeight: 800, background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                                {entry.totalPoints}
-                                            </div>
-                                            <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                                Points
-                                            </div>
-                                        </div>
-                                    </div>
+                                        );
+                                    })}
                                 </div>
-
-                                {hoveredUser === entry.userId && entry.predictions.filter(p => p.actualScoreA !== null).length > 0 && (
-                                    <div className="tooltip-content" style={{ width: '400px', maxWidth: '90vw' }}>
-                                        <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 'var(--spacing-sm)' }}>
-                                            {entry.username}'s Predictions
-                                        </h4>
-                                        <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
-                                            {entry.predictions
-                                                .filter(p => p.actualScoreA !== null)
-                                                .map((pred) => (
-                                                    <div
-                                                        key={pred.matchId}
-                                                        style={{
-                                                            padding: 'var(--spacing-xs)',
-                                                            background: 'var(--bg-tertiary)',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            fontSize: '0.875rem',
-                                                        }}
-                                                    >
-                                                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-                                                            {pred.teamA} vs {pred.teamB}
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted">
-                                                                Predicted: {pred.predictedScoreA}-{pred.predictedScoreB}
-                                                            </span>
-                                                            <span className="text-muted">
-                                                                Actual: {pred.actualScoreA}-{pred.actualScoreB}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ marginTop: '0.25rem' }}>
-                                                            <span
-                                                                className="badge"
-                                                                style={{
-                                                                    background: pred.points === 5 ? 'var(--success-gradient)' :
-                                                                        pred.points === 3 ? 'var(--primary-gradient)' :
-                                                                            pred.points === 2 ? 'var(--warning-gradient)' :
-                                                                                'var(--bg-secondary)',
-                                                                    fontSize: '0.75rem',
-                                                                }}
-                                                            >
-                                                                {pred.points === 5 ? '🎯 Exact' :
-                                                                    pred.points === 3 ? '✓ Diff' :
-                                                                        pred.points === 2 ? '✓ Winner' :
-                                                                            '✗ Miss'} ({pred.points} pts)
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-                        ))}
-                    </div>
+                        )}
+
+                        {/* --- Full Table --- */}
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', overflow: 'hidden' }}>
+                            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>All Participants ({leaderboard.length})</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Click a row to see breakdown</span>
+                            </div>
+                            <div style={{ padding: '0.5rem 0' }}>
+                                {leaderboard.map((entry, index) => {
+                                    const isMe = entry.userId === myId;
+                                    const isOpen = expanded === entry.userId;
+                                    const medals = ['🥇', '🥈', '🥉'];
+                                    const scored = entry.predictions.filter(p => p.actualScoreA !== null);
+                                    return (
+                                        <div key={entry.userId}>
+                                            <div
+                                                className={`lb-row ${isMe ? 'lb-row-me' : ''}`}
+                                                onClick={() => setExpanded(isOpen ? null : entry.userId)}
+                                            >
+                                                <div className="lb-rank">
+                                                    {index < 3 ? medals[index] : <span style={{ color: 'var(--text-muted)' }}>{index + 1}</span>}
+                                                </div>
+                                                <div className="lb-user">
+                                                    <div className="lb-username">
+                                                        {entry.username}
+                                                        {isMe && <span style={{ fontSize: '0.65rem', background: 'rgba(102,126,234,0.2)', color: '#a0b3f8', padding: '0.1rem 0.4rem', borderRadius: '999px', fontWeight: 700 }}>YOU</span>}
+                                                    </div>
+                                                    <div className="lb-scored">{scored.length} scored</div>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <div className="lb-points">{entry.totalPoints}</div>
+                                                    <div className="lb-pts-label">points</div>
+                                                </div>
+                                            </div>
+                                            {isOpen && scored.length > 0 && (
+                                                <div className="lb-breakdown">
+                                                    {scored.map(p => {
+                                                        const exact = p.predictedScoreA === p.actualScoreA && p.predictedScoreB === p.actualScoreB;
+                                                        const color = p.points === 5 ? '#4facfe' : p.points >= 3 ? '#667eea' : p.points > 0 ? '#fa709a' : 'var(--text-muted)';
+                                                        return (
+                                                            <div key={p.matchId} className="lb-pred-row">
+                                                                <span style={{ color: 'var(--text-secondary)' }}>{p.teamA} vs {p.teamB}</span>
+                                                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                                                        Pick: {p.predictedScoreA}–{p.predictedScoreB} · Actual: {p.actualScoreA}–{p.actualScoreB}
+                                                                    </span>
+                                                                    <span style={{ color, fontWeight: 700, fontSize: '0.82rem' }}>+{p.points}pts</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
