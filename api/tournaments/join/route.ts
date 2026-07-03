@@ -31,7 +31,11 @@ export async function POST(request: Request) {
         const existing = existingRows[0];
 
         if (existing) {
-            return NextResponse.json({ error: 'Already joined this tournament' }, { status: 409 });
+            return NextResponse.json({
+                error: 'Already joined this tournament',
+                tournamentId: (tournament as any).id,
+                tournamentName: (tournament as any).name,
+            }, { status: 409 });
         }
 
         // Add participant
@@ -41,7 +45,11 @@ export async function POST(request: Request) {
             [participantId, (tournament as any).id, session.user.id]
         );
 
-        return NextResponse.json({ message: 'Joined tournament successfully', tournament }, { status: 201 });
+        return NextResponse.json({
+            message: 'Joined tournament successfully',
+            tournamentId: (tournament as any).id,
+            tournamentName: (tournament as any).name,
+        }, { status: 201 });
     } catch (error) {
         console.error('Join tournament error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

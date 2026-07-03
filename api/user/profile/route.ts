@@ -13,12 +13,22 @@ export async function GET() {
 
         const userId = session.user.id;
 
+        // Ensure subscription columns exist (auto-migrate on first request)
+        await db.query(`
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS current_period_end BIGINT;
+        `).catch(() => {});
+
         // Fetch user basic data
         const { rows: userRows } = await db.query(`
-            SELECT 
-                id, username, email, role, is_paid as isPaid, 
-                avatar_url as avatarUrl, bio, best_streak as bestStreak, created_at as createdAt
-            FROM users 
+            SELECT
+                id, username, email, role, is_paid as isPaid,
+                avatar_url as avatarUrl, bio, best_streak as bestStreak, created_at as createdAt,
+                subscription_status, subscription_plan, current_period_end
+            FROM users
             WHERE id = $1
         `, [userId]);
 
@@ -63,14 +73,14 @@ export async function GET() {
             accuracy: stats.accuracy || 0,
             totalPredictions: stats.totalPredictions || 0,
             leagues: leagues || [],
-            achievements: achievementData || []
+            achievements: achievementData || [],
+            subscriptionStatus: user.subscription_status || null,
+            subscriptionPlan: user.subscription_plan || null,
+            currentPeriodEnd: user.current_period_end ? Number(user.current_period_end) : null,
         });
     } catch (error) {
-        console.error('Profile GET error details:', error);
-        return NextResponse.json({
-            error: 'Failed to load profile data',
-            details: error instanceof Error ? error.message : String(error)
-        }, { status: 500 });
+        console.error('Profile GET error:', error);
+        return NextResponse.json({ error: 'Failed to load profile data' }, { status: 500 });
     }
 }
 
@@ -87,6 +97,23 @@ export async function PUT(request: Request) {
         // Basic validation
         if (username && username.length < 3) {
             return NextResponse.json({ error: 'Username must be at least 3 characters' }, { status: 400 });
+        }
+        if (username && username.length > 50) {
+            return NextResponse.json({ error: 'Username must be 50 characters or fewer' }, { status: 400 });
+        }
+        if (bio && bio.length > 500) {
+            return NextResponse.json({ error: 'Bio must be 500 characters or fewer' }, { status: 400 });
+        }
+        // Only allow relative paths or trusted CDN origins for avatarUrl
+        if (avatarUrl !== undefined && avatarUrl !== null && avatarUrl !== '') {
+            const isRelative = avatarUrl.startsWith('/');
+            const isTrusted = /^https:\/\/(lh3\.googleusercontent\.com|avatars\.githubusercontent\.com|cdn\.yourfriendleague\.com|flagcdn\.com)\//i.test(avatarUrl);
+            if (!isRelative && !isTrusted) {
+                return NextResponse.json({ error: 'Avatar URL must be a relative path or from a trusted source' }, { status: 400 });
+            }
+            if (avatarUrl.length > 500) {
+                return NextResponse.json({ error: 'Avatar URL is too long' }, { status: 400 });
+            }
         }
 
         // Check if username is taken (if changed)

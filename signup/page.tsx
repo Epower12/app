@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function SignupPage() {
+function SignupPageInner() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const intent = searchParams.get('intent'); // 'premium' if coming from landing pricing CTA
+    const plan = searchParams.get('plan');     // 'monthly' | 'yearly'
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -59,7 +62,13 @@ export default function SignupPage() {
             if (!response.ok) {
                 setError(data.error || 'Failed to create account');
             } else {
-                router.push('/login');
+                // Preserve upgrade intent through login → profile auto-checkout
+                if (intent === 'premium' && (plan === 'monthly' || plan === 'yearly')) {
+                    const next = encodeURIComponent(`/profile?startCheckout=${plan}`);
+                    router.push(`/login?next=${next}`);
+                } else {
+                    router.push('/login');
+                }
             }
         } catch {
             setError('An error occurred. Please try again.');
@@ -171,6 +180,16 @@ export default function SignupPage() {
                         >
                             {loading ? '⏳ Creating...' : <>Create Free Account <span className="btn-arrow">→</span></>}
                         </button>
+
+                        <p style={{
+                            fontSize: '0.75rem', color: 'var(--text-muted)',
+                            textAlign: 'center', lineHeight: 1.6, marginTop: '0.75rem',
+                        }}>
+                            By creating an account you agree to our{' '}
+                            <Link href="/terms" style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}>Terms</Link>
+                            {' '}and{' '}
+                            <Link href="/privacy" style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}>Privacy Policy</Link>.
+                        </p>
                     </form>
 
                     <div className="auth-form-footer">
@@ -192,8 +211,7 @@ export default function SignupPage() {
                 </div>
                 <div className="auth-visual-content">
                     <div className="auth-visual-logo">
-                        <span>⚽</span>
-                        <span className="auth-visual-logo-text">SportPredict</span>
+                        <img src="/logo.png" alt="YourFriendsLeague" style={{ height: '120px', width: 'auto' }} />
                     </div>
                     <h2 className="auth-visual-headline">
                         Join the<br />prediction<br /><span className="gradient-text">arena.</span>
@@ -209,5 +227,13 @@ export default function SignupPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function SignupPage() {
+    return (
+        <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+            <SignupPageInner />
+        </Suspense>
     );
 }

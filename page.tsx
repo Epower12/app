@@ -1,45 +1,27 @@
-'use client';
+import type { Metadata } from 'next';
+import HomeRouter from './HomeRouter';
+import SoftwareApplicationJsonLd from './components/SoftwareApplicationJsonLd';
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import LandingPage from './landing/page';
+export const metadata: Metadata = {
+    title: 'YourFriendsLeague — Predict. Compete. Dominate.',
+    description:
+        'Free sports score prediction platform. Predict scorelines for football, ice hockey, tennis, basketball and more. Compete with friends in private leagues, earn points for accuracy.',
+    alternates: {
+        canonical: 'https://yourfriendleague.com/',
+    },
+    openGraph: {
+        title: 'YourFriendsLeague — Predict. Compete. Dominate.',
+        description:
+            'Free sports score prediction platform. Predict scorelines, compete with friends, climb the leaderboard.',
+        url: 'https://yourfriendleague.com/',
+    },
+};
 
 export default function Home() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (status === 'loading') return;
-
-    if (session) {
-      if ((session.user as any).role === 'premium' || (session.user as any).role === 'admin') {
-        router.push('/premium');
-      } else {
-        router.push('/tournaments');
-      }
-    }
-    // If no session, we stay here and show the landing page
-  }, [session, status, router]);
-
-  // Show loading spinner while session is being determined
-  if (status === 'loading') {
     return (
-      <div className="container" style={{ paddingTop: '4rem', textAlign: 'center' }}>
-        <div className="loading" style={{ height: '200px', borderRadius: 'var(--radius-lg)' }}></div>
-      </div>
+        <>
+            <SoftwareApplicationJsonLd />
+            <HomeRouter />
+        </>
     );
-  }
-
-  // Unauthenticated → show landing page
-  if (!session) {
-    return <LandingPage />;
-  }
-
-  // Authenticated users will be redirected, show blank while redirect happens
-  return (
-    <div className="container" style={{ paddingTop: '4rem', textAlign: 'center' }}>
-      <div className="loading" style={{ height: '200px', borderRadius: 'var(--radius-lg)' }}></div>
-    </div>
-  );
 }

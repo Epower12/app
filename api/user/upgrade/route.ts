@@ -10,16 +10,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Cast session user to include our custom types
     const userId = (session.user as any).id;
 
     try {
         const { action } = await req.json();
-
-        if (action === 'simulate_payment') {
-            await db.query('UPDATE users SET is_paid = true WHERE id = $1', [userId]);
-            return NextResponse.json({ success: true, isPaid: true });
-        }
 
         if (action === 'upgrade_premium') {
             const { rows } = await db.query('SELECT is_paid FROM users WHERE id = $1', [userId]);

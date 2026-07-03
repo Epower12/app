@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -179,10 +179,15 @@ export default function TournamentsPage() {
                                 Enter the 6-character code shared by the league organiser.
                             </p>
                             <form onSubmit={handleJoin}>
+                                <label htmlFor="join-code-input" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+                                    Join code
+                                </label>
                                 <input
+                                    id="join-code-input"
                                     type="text"
                                     className="input"
                                     placeholder="XXXXXX"
+                                    aria-label="6-character join code"
                                     value={joinCode}
                                     onChange={e => setJoinCode(e.target.value.toUpperCase())}
                                     maxLength={6}
@@ -204,6 +209,37 @@ export default function TournamentsPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+/* ---- Share helper ---- */
+function ShareButton({ joinCode, leagueName }: { joinCode: string; leagueName: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleShare = async () => {
+        // Always share via the app subdomain (in dev/preview, fall back to current origin)
+        const origin = window.location.hostname.endsWith('yourfriendleague.com')
+            ? 'https://app.yourfriendleague.com'
+            : window.location.origin;
+        const url = `${origin}/join?code=${joinCode}`;
+        if (navigator.share) {
+            try { await navigator.share({ title: `Join "${leagueName}" on YourFriendsLeague`, url }); return; } catch { /* fallback */ }
+        }
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleShare}
+            title="Share invite link"
+            aria-label={`Share invite link for ${leagueName}`}
+            style={{ minWidth: 80 }}
+        >
+            {copied ? '✅ Copied!' : '🔗 Share'}
+        </button>
     );
 }
 
@@ -238,6 +274,7 @@ function TournamentCard({ tournament: t }: { tournament: Tournament }) {
             <div className="tournament-card-actions">
                 <Link href={`/predictions/${t.id}`} className="btn btn-primary">🎯 Predict</Link>
                 <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary">📊 Rankings</Link>
+                <ShareButton joinCode={t.join_code} leagueName={t.name} />
             </div>
         </div>
     );
@@ -285,11 +322,15 @@ function OpenLeagueCard({ tournament: t, joined, onJoined }: { tournament: Tourn
                     <>
                         <Link href={`/predictions/${t.id}`} className="btn btn-primary">🎯 Predict</Link>
                         <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary">📊 Rankings</Link>
+                        <ShareButton joinCode={t.join_code} leagueName={t.name} />
                     </>
                 ) : (
-                    <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleQuickJoin} disabled={joining}>
-                        {joining ? 'Joining…' : '+ Join This League'}
-                    </button>
+                    <>
+                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleQuickJoin} disabled={joining}>
+                            {joining ? 'Joining…' : '+ Join This League'}
+                        </button>
+                        <ShareButton joinCode={t.join_code} leagueName={t.name} />
+                    </>
                 )}
             </div>
         </div>

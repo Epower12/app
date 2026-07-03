@@ -53,8 +53,7 @@ export default function LoginPage() {
                 </div>
                 <div className="auth-visual-content">
                     <div className="auth-visual-logo">
-                        <span>⚽</span>
-                        <span className="auth-visual-logo-text">SportPredict</span>
+                        <img src="/logo.png" alt="YourFriendsLeague" style={{ height: '120px', width: 'auto' }} />
                     </div>
                     <h2 className="auth-visual-headline">
                         Predict.<br />Compete.<br /><span className="gradient-text">Win.</span>
@@ -81,7 +80,7 @@ export default function LoginPage() {
                 <div className="auth-form-inner">
                     <div className="auth-form-header">
                         <h1 className="auth-form-title">Welcome back</h1>
-                        <p className="auth-form-subtitle">Sign in to your SportPredict account</p>
+                        <p className="auth-form-subtitle">Sign in to your YourFriendsLeague account</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="auth-form">
@@ -99,7 +98,10 @@ export default function LoginPage() {
                         </div>
 
                         <div className="form-group" style={{ position: 'relative' }}>
-                            <label className="form-label" htmlFor="password">Password</label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
+                                <label className="form-label" htmlFor="password" style={{ margin: 0 }}>Password</label>
+                                <Link href="/forgot-password" className="auth-link" style={{ fontSize: '0.8rem' }}>Forgot password?</Link>
+                            </div>
                             <input
                                 id="password"
                                 type={showPassword ? 'text' : 'password'}
