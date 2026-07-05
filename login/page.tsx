@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import OAuthButtons from '../components/OAuthButtons';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -82,6 +83,8 @@ export default function LoginPage() {
                         <h1 className="auth-form-title">Welcome back</h1>
                         <p className="auth-form-subtitle">Sign in to your YourFriendsLeague account</p>
                     </div>
+
+                    <OAuthButtons callbackUrl="/" />
 
                     <form onSubmit={handleSubmit} className="auth-form">
                         <div className="form-group">

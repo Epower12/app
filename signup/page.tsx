@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import OAuthButtons from '../components/OAuthButtons';
 
 function SignupPageInner() {
     const router = useRouter();
@@ -32,6 +33,11 @@ function SignupPageInner() {
     const strength = getStrength(formData.password);
     const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][strength];
     const strengthColors = ['', '#f5576c', '#fa709a', '#4facfe', '#00f2fe'];
+
+    // Preserve premium upgrade intent through OAuth signup too, same as the credentials path.
+    const oauthCallbackUrl = intent === 'premium' && (plan === 'monthly' || plan === 'yearly')
+        ? `/profile?startCheckout=${plan}`
+        : '/';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -93,6 +99,8 @@ function SignupPageInner() {
                         <h1 className="auth-form-title">Create account</h1>
                         <p className="auth-form-subtitle">It&apos;s free — no credit card needed</p>
                     </div>
+
+                    <OAuthButtons callbackUrl={oauthCallbackUrl} />
 
                     <form onSubmit={handleSubmit} className="auth-form">
                         <div className="form-group">
