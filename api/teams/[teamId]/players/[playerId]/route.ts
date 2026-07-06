@@ -39,10 +39,10 @@ export async function PATCH(
                 jersey_number = COALESCE($4, jersey_number),
                 phone = COALESCE($5, phone),
                 dues_monthly = COALESCE($6, dues_monthly)
-             WHERE id = $7`,
+             WHERE id = $7 AND team_id = $8`,
             [
                 firstName?.trim() || null, lastName?.trim() || null, position ?? null,
-                jerseyNumber ?? null, phone ?? null, duesMonthly ?? null, playerId,
+                jerseyNumber ?? null, phone ?? null, duesMonthly ?? null, playerId, teamId,
             ]
         );
 
