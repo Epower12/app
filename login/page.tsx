@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import OAuthButtons from '../components/OAuthButtons';
 
-export default function LoginPage() {
+function LoginPageInner() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const next = searchParams.get('next') || '/';
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ export default function LoginPage() {
             if (result?.error) {
                 setError('Invalid email or password');
             } else {
-                router.push('/');
+                router.push(next);
                 router.refresh();
             }
         } catch {
@@ -84,7 +86,7 @@ export default function LoginPage() {
                         <p className="auth-form-subtitle">Sign in to your YourFriendsLeague account</p>
                     </div>
 
-                    <OAuthButtons callbackUrl="/" />
+                    <OAuthButtons callbackUrl={next} />
 
                     <form onSubmit={handleSubmit} className="auth-form">
                         <div className="form-group">
@@ -143,12 +145,20 @@ export default function LoginPage() {
                     <div className="auth-form-footer">
                         <p>
                             Don&apos;t have an account?{' '}
-                            <Link href="/signup" className="auth-link">Create one free</Link>
+                            <Link href={`/signup${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="auth-link">Create one free</Link>
                         </p>
                         <Link href="/" className="auth-link-muted">← Back to home</Link>
                     </div>
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+            <LoginPageInner />
+        </Suspense>
     );
 }

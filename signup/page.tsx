@@ -10,6 +10,7 @@ function SignupPageInner() {
     const searchParams = useSearchParams();
     const intent = searchParams.get('intent'); // 'premium' if coming from landing pricing CTA
     const plan = searchParams.get('plan');     // 'monthly' | 'yearly'
+    const next = searchParams.get('next') || '/';
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -35,9 +36,10 @@ function SignupPageInner() {
     const strengthColors = ['', '#f5576c', '#fa709a', '#4facfe', '#00f2fe'];
 
     // Preserve premium upgrade intent through OAuth signup too, same as the credentials path.
+    // Falls back to a plain ?next= destination (e.g. /teams) when there's no premium intent.
     const oauthCallbackUrl = intent === 'premium' && (plan === 'monthly' || plan === 'yearly')
         ? `/profile?startCheckout=${plan}`
-        : '/';
+        : next;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,13 +70,11 @@ function SignupPageInner() {
             if (!response.ok) {
                 setError(data.error || 'Failed to create account');
             } else {
-                // Preserve upgrade intent through login → profile auto-checkout
-                if (intent === 'premium' && (plan === 'monthly' || plan === 'yearly')) {
-                    const next = encodeURIComponent(`/profile?startCheckout=${plan}`);
-                    router.push(`/login?next=${next}`);
-                } else {
-                    router.push('/login');
-                }
+                // Preserve upgrade intent (or a plain next= destination) through login → auto-redirect
+                const postLoginTarget = intent === 'premium' && (plan === 'monthly' || plan === 'yearly')
+                    ? `/profile?startCheckout=${plan}`
+                    : next;
+                router.push(postLoginTarget !== '/' ? `/login?next=${encodeURIComponent(postLoginTarget)}` : '/login');
             }
         } catch {
             setError('An error occurred. Please try again.');
@@ -203,7 +203,7 @@ function SignupPageInner() {
                     <div className="auth-form-footer">
                         <p>
                             Already have an account?{' '}
-                            <Link href="/login" className="auth-link">Sign in</Link>
+                            <Link href={`/login${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="auth-link">Sign in</Link>
                         </p>
                         <Link href="/" className="auth-link-muted">← Back to home</Link>
                     </div>
