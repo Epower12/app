@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import db from '@/lib/db';
+import { ensureMigrations } from '@/lib/migrations';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import {
     VALID_API_SPORTS,
@@ -24,6 +25,8 @@ export async function GET(request: Request) {
     if (!isOwner(session)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    await ensureMigrations();
 
     const { searchParams } = new URL(request.url);
     const leagueId = searchParams.get('leagueId');
@@ -67,6 +70,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    await ensureMigrations();
+
     const body = await request.json();
     const provider: FixtureProvider = body.provider ?? 'api-sports';
     const season = Number(body.season);
@@ -108,6 +113,8 @@ export async function PATCH(request: Request) {
     if (!isOwner(session)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    await ensureMigrations();
 
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

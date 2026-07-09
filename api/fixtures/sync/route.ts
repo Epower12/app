@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { ensureMigrations } from '@/lib/migrations';
 import { resyncAllLeagues } from '@/lib/fixtureSync';
 
 /**
@@ -34,6 +35,7 @@ async function handle(request: Request) {
     }
 
     try {
+        await ensureMigrations();
         const results = await resyncAllLeagues();
         const matchesSynced = results.reduce((sum, r) => sum + r.matchesSynced, 0);
         return NextResponse.json({

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
+import { ensureMigrations } from '@/lib/migrations';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 // POST /api/matches/import-race
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
     if (!tournamentId || !Array.isArray(apiRaceIds) || apiRaceIds.length === 0) {
         return NextResponse.json({ error: 'tournamentId and apiRaceIds[] are required' }, { status: 400 });
     }
+
+    await ensureMigrations();
 
     const { rows: tournamentRows } = await db.query(
         'SELECT * FROM tournaments WHERE id = $1 AND created_by = $2',
