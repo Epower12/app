@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import db from '@/lib/db';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { fetchLeague, fetchGames, mapStatus } from '@/lib/api-sports';
+import {
+    VALID_API_SPORTS,
+    syncNewApiSportsLeague,
+    syncNewNhlSeason,
+    syncNewF1Season,
+    resyncLeagueById,
+    type FixtureProvider,
+} from '@/lib/fixtureSync';
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL ?? '';
 
@@ -10,7 +17,8 @@ function isOwner(session: any): boolean {
     return !!session?.user?.email && session.user.email === OWNER_EMAIL;
 }
 
-// GET /api/owner/api-leagues — list all synced leagues
+// GET /api/owner/api-leagues — list all tracked sources
+// GET /api/owner/api-leagues?leagueId=X — list staged items for that source (api_matches or api_races)
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     if (!isOwner(session)) {
@@ -20,8 +28,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const leagueId = searchParams.get('leagueId');
 
-    // If leagueId provided, return matches for that league (for import UI)
     if (leagueId) {
+        const { rows: leagueRows } = await db.query('SELECT * FROM api_leagues WHERE id = $1', [leagueId]);
+        if (!leagueRows.length) return NextResponse.json({ error: 'League not found' }, { status: 404 });
+
+        if (leagueRows[0].provider === 'jolpica-f1') {
+            const { rows } = await db.query(
+                `SELECT * FROM api_races WHERE api_league_id = $1 ORDER BY round ASC`,
+                [leagueId]
+            );
+            return NextResponse.json(rows);
+        }
+
         const { rows } = await db.query(
             `SELECT am.*, al.name as league_name
              FROM api_matches am
@@ -39,78 +57,51 @@ export async function GET(request: Request) {
     return NextResponse.json(rows);
 }
 
-// POST /api/owner/api-leagues — sync a new league from API-Sports
-// Body: { leagueId: number, season: number }
+// POST /api/owner/api-leagues — start tracking a new source
+// Body (api-sports): { provider: 'api-sports', sport: 'Ice Hockey' | 'Football', leagueId: number, season: number }
+// Body (nhl):        { provider: 'nhl', season: number }               // season = start year, e.g. 2025 for 2025-26
+// Body (jolpica-f1): { provider: 'jolpica-f1', season: number }        // season = calendar year, e.g. 2026
 export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     if (!isOwner(session)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { leagueId, season } = await request.json();
+    const body = await request.json();
+    const provider: FixtureProvider = body.provider ?? 'api-sports';
+    const season = Number(body.season);
 
-    if (!leagueId || !season) {
-        return NextResponse.json({ error: 'leagueId and season are required' }, { status: 400 });
+    if (!season) {
+        return NextResponse.json({ error: 'season is required' }, { status: 400 });
     }
 
     try {
-        // 1. Fetch league metadata from API-Sports
-        const leagues = await fetchLeague(Number(leagueId), Number(season));
-        if (!leagues.length) {
-            return NextResponse.json({ error: 'League not found on API-Sports' }, { status: 404 });
-        }
-        const l = leagues[0];
-
-        // 2. Upsert the league row
-        const { rows: leagueRows } = await db.query(
-            `INSERT INTO api_leagues (name, sport, external_id, season, country, logo_url, synced_at)
-             VALUES ($1, 'Ice Hockey', $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::BIGINT)
-             ON CONFLICT (external_id, season)
-             DO UPDATE SET name = EXCLUDED.name, synced_at = EXCLUDED.synced_at
-             RETURNING *`,
-            [l.league.name, leagueId, season, l.country.name, l.league.logo]
-        );
-        const dbLeague = leagueRows[0];
-
-        // 3. Fetch all games for this league+season
-        const games = await fetchGames(Number(leagueId), Number(season));
-
-        // 4. Upsert each game into api_matches
-        let upserted = 0;
-        for (const g of games) {
-            const status = mapStatus(g.status.short);
-            const homeScore = g.scores?.home?.total ?? null;
-            const awayScore = g.scores?.away?.total ?? null;
-
-            await db.query(
-                `INSERT INTO api_matches (api_league_id, external_id, home_team, away_team, match_time, status, home_score, away_score, synced_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, EXTRACT(EPOCH FROM NOW())::BIGINT)
-                 ON CONFLICT (external_id)
-                 DO UPDATE SET status = EXCLUDED.status, home_score = EXCLUDED.home_score,
-                               away_score = EXCLUDED.away_score, synced_at = EXCLUDED.synced_at`,
-                [dbLeague.id, g.id, g.teams.home.name, g.teams.away.name, g.timestamp, status, homeScore, awayScore]
-            );
-            upserted++;
+        if (provider === 'nhl') {
+            const { league, matchesSynced } = await syncNewNhlSeason(season);
+            return NextResponse.json({ success: true, league, matchesSynced });
         }
 
-        // 5. Update match count on the league
-        await db.query(
-            'UPDATE api_leagues SET match_count = $1 WHERE id = $2',
-            [upserted, dbLeague.id]
-        );
+        if (provider === 'jolpica-f1') {
+            const { league, matchesSynced } = await syncNewF1Season(season);
+            return NextResponse.json({ success: true, league, matchesSynced });
+        }
 
-        return NextResponse.json({
-            success: true,
-            league: { ...dbLeague, match_count: upserted },
-            matchesSynced: upserted,
-        });
+        const sport = body.sport ?? 'Ice Hockey';
+        const leagueId = Number(body.leagueId);
+        if (!leagueId) return NextResponse.json({ error: 'leagueId is required' }, { status: 400 });
+        if (!VALID_API_SPORTS.includes(sport)) {
+            return NextResponse.json({ error: `sport must be one of: ${VALID_API_SPORTS.join(', ')}` }, { status: 400 });
+        }
+
+        const { league, matchesSynced } = await syncNewApiSportsLeague(sport, leagueId, season);
+        return NextResponse.json({ success: true, league, matchesSynced });
     } catch (error: any) {
-        console.error('API-Sports sync error:', error);
+        console.error('Fixture sync error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
-// PATCH /api/owner/api-leagues — re-sync matches for an existing league
+// PATCH /api/owner/api-leagues — re-sync an already-tracked source
 // Body: { id: number }  (api_leagues.id)
 export async function PATCH(request: Request) {
     const session = await getServerSession(authOptions);
@@ -121,44 +112,17 @@ export async function PATCH(request: Request) {
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-    const { rows } = await db.query('SELECT * FROM api_leagues WHERE id = $1', [id]);
-    if (!rows.length) return NextResponse.json({ error: 'League not found' }, { status: 404 });
-
-    const league = rows[0];
-
     try {
-        const games = await fetchGames(league.external_id, league.season);
-        let upserted = 0;
-
-        for (const g of games) {
-            const status = mapStatus(g.status.short);
-            const homeScore = g.scores?.home?.total ?? null;
-            const awayScore = g.scores?.away?.total ?? null;
-
-            await db.query(
-                `INSERT INTO api_matches (api_league_id, external_id, home_team, away_team, match_time, status, home_score, away_score, synced_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, EXTRACT(EPOCH FROM NOW())::BIGINT)
-                 ON CONFLICT (external_id)
-                 DO UPDATE SET status = EXCLUDED.status, home_score = EXCLUDED.home_score,
-                               away_score = EXCLUDED.away_score, synced_at = EXCLUDED.synced_at`,
-                [league.id, g.id, g.teams.home.name, g.teams.away.name, g.timestamp, status, homeScore, awayScore]
-            );
-            upserted++;
-        }
-
-        await db.query(
-            'UPDATE api_leagues SET match_count = $1, synced_at = EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id = $2',
-            [upserted, id]
-        );
-
-        return NextResponse.json({ success: true, matchesSynced: upserted });
+        const { matchesSynced } = await resyncLeagueById(Number(id));
+        return NextResponse.json({ success: true, matchesSynced });
     } catch (error: any) {
         console.error('Re-sync error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const status = error.message === 'League not found' ? 404 : 500;
+        return NextResponse.json({ error: error.message }, { status });
     }
 }
 
-// DELETE /api/owner/api-leagues?id=X — remove a synced league + its matches
+// DELETE /api/owner/api-leagues?id=X — remove a tracked source + its staged matches/races
 export async function DELETE(request: Request) {
     const session = await getServerSession(authOptions);
     if (!isOwner(session)) {

@@ -9,7 +9,9 @@ import Navbar from '../components/Navbar';
 interface User { id: string; username: string; email: string; role: string; created_at: number; }
 interface Tournament { id: string; name: string; sport: string; league_type: string; join_code: string; creator_name: string; created_at: number; is_active: number; }
 interface Stats { users: number; tournaments: number; matches: number; predictions: number; }
-interface ApiLeague { id: number; name: string; sport: string; external_id: number; season: number; country: string; logo_url: string; match_count: number; synced_at: number; }
+interface ApiLeague { id: number; name: string; sport: string; provider: string; external_id: number; season: number; country: string; logo_url: string; match_count: number; synced_at: number; }
+
+type SyncSource = 'api-sports-hockey' | 'api-sports-football' | 'nhl' | 'jolpica-f1';
 
 export default function OwnerPage() {
     const { data: session, status } = useSession();
@@ -23,6 +25,7 @@ export default function OwnerPage() {
     const [loading, setLoading] = useState(true);
     const [savingRole, setSavingRole] = useState<string | null>(null);
     // API Leagues form
+    const [syncSource, setSyncSource] = useState<SyncSource>('nhl');
     const [syncLeagueId, setSyncLeagueId] = useState('');
     const [syncSeason, setSyncSeason] = useState(new Date().getFullYear().toString());
     const [syncing, setSyncing] = useState(false);
@@ -74,14 +77,25 @@ export default function OwnerPage() {
         e.preventDefault();
         setSyncing(true);
         setSyncMsg('');
+        const body: Record<string, unknown> = { season: Number(syncSeason) };
+        if (syncSource === 'nhl') {
+            body.provider = 'nhl';
+        } else if (syncSource === 'jolpica-f1') {
+            body.provider = 'jolpica-f1';
+        } else {
+            body.provider = 'api-sports';
+            body.sport = syncSource === 'api-sports-football' ? 'Football' : 'Ice Hockey';
+            body.leagueId = Number(syncLeagueId);
+        }
         const res = await fetch('/api/owner/api-leagues', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leagueId: Number(syncLeagueId), season: Number(syncSeason) }),
+            body: JSON.stringify(body),
         });
         const data = await res.json();
         if (res.ok) {
-            setSyncMsg(`✅ Synced "${data.league.name}" — ${data.matchesSynced} matches imported.`);
+            const unit = syncSource === 'jolpica-f1' ? 'races' : 'matches';
+            setSyncMsg(`✅ Synced "${data.league.name}" — ${data.matchesSynced} ${unit} imported.`);
             loadApiLeagues();
         } else {
             setSyncMsg(`❌ ${data.error}`);
@@ -330,27 +344,45 @@ export default function OwnerPage() {
                             </button>
                         </div>
 
-                        {/* Step 2: Sync a league */}
+                        {/* Step 2: Sync a source */}
                         <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '0.75rem' }}>
-                                <strong style={{ color: 'var(--text-primary)' }}>Step 2:</strong> Sync a league from API-Sports. Enter the league ID and season year.
-                                {' '}<span style={{ color: 'var(--text-muted)' }}>IIHF World Championship = <strong>57</strong>, NHL = <strong>57</strong> varies — check <a href="https://api-sports.io" target="_blank" style={{ color: 'var(--color-primary)' }}>api-sports.io</a> docs.</span>
+                                <strong style={{ color: 'var(--text-primary)' }}>Step 2:</strong> Sync fixtures from a source. NHL and Formula 1 are free and need no league ID.
+                                {' '}<span style={{ color: 'var(--text-muted)' }}>API-Sports Hockey/Football need a league ID + season — <strong>note: our API-Sports plan is Free tier, capped to seasons 2022–2024, no current-season data.</strong></span>
                             </p>
                             <form onSubmit={syncLeague} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                                 <div>
-                                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>League ID</label>
-                                    <input
+                                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Source</label>
+                                    <select
                                         className="input"
-                                        style={{ width: '110px' }}
-                                        type="number"
-                                        placeholder="e.g. 57"
-                                        value={syncLeagueId}
-                                        onChange={e => setSyncLeagueId(e.target.value)}
-                                        required
-                                    />
+                                        style={{ width: '220px' }}
+                                        value={syncSource}
+                                        onChange={e => setSyncSource(e.target.value as SyncSource)}
+                                    >
+                                        <option value="nhl">Ice Hockey — NHL (free)</option>
+                                        <option value="jolpica-f1">Formula 1 — Jolpica (free)</option>
+                                        <option value="api-sports-hockey">Ice Hockey — API-Sports (2022-2024 only)</option>
+                                        <option value="api-sports-football">Football — API-Sports (2022-2024 only)</option>
+                                    </select>
                                 </div>
+                                {syncSource.startsWith('api-sports') && (
+                                    <div>
+                                        <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>League ID</label>
+                                        <input
+                                            className="input"
+                                            style={{ width: '110px' }}
+                                            type="number"
+                                            placeholder="e.g. 57"
+                                            value={syncLeagueId}
+                                            onChange={e => setSyncLeagueId(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                )}
                                 <div>
-                                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Season</label>
+                                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>
+                                        {syncSource === 'nhl' ? 'Season start year' : 'Season'}
+                                    </label>
                                     <input
                                         className="input"
                                         style={{ width: '100px' }}
@@ -384,6 +416,7 @@ export default function OwnerPage() {
                                         <tr>
                                             <th>League</th>
                                             <th>Sport</th>
+                                            <th>Provider</th>
                                             <th>Season</th>
                                             <th>Country</th>
                                             <th>Matches</th>
@@ -396,6 +429,7 @@ export default function OwnerPage() {
                                             <tr key={l.id}>
                                                 <td><strong style={{ color: 'var(--text-primary)' }}>{l.name}</strong></td>
                                                 <td>{l.sport}</td>
+                                                <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{l.provider}</td>
                                                 <td>{l.season}</td>
                                                 <td>{l.country ?? '—'}</td>
                                                 <td><span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>{l.match_count}</span></td>

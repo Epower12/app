@@ -20,10 +20,14 @@ interface Match {
 }
 
 interface RaceDriver { id: string; driver_name: string; team_name: string | null; number: number | null; }
-interface ApiLeague { id: number; name: string; season: number; match_count: number; }
+interface ApiLeague { id: number; name: string; season: number; match_count: number; provider: 'api-sports' | 'nhl' | 'jolpica-f1'; }
 interface ApiMatch {
     id: number; home_team: string; away_team: string; match_time: number;
     status: string; home_score: number | null; away_score: number | null;
+}
+interface ApiRace {
+    id: number; race_name: string; round: number; race_time: number; status: string;
+    p1_driver: string | null; p2_driver: string | null; p3_driver: string | null;
 }
 interface PresetMatch { teamA: string; teamB: string; scheduledTime: number; sport: string; }
 interface PresetSummary {
@@ -98,6 +102,7 @@ export default function ManagePage() {
     const [apiLeagues, setApiLeagues] = useState<ApiLeague[]>([]);
     const [selectedLeague, setSelectedLeague] = useState<number | null>(null);
     const [apiMatches, setApiMatches] = useState<ApiMatch[]>([]);
+    const [apiRaces, setApiRaces] = useState<ApiRace[]>([]);
     const [selectedMatchIds, setSelectedMatchIds] = useState<Set<number>>(new Set());
     const [importLoading, setImportLoading] = useState(false);
     const [importMsg, setImportMsg] = useState('');
@@ -163,12 +168,21 @@ export default function ManagePage() {
         if (res.ok) setApiLeagues(await res.json());
     };
 
+    const selectedLeagueProvider = apiLeagues.find(l => l.id === selectedLeague)?.provider;
+    const isRaceLeague = selectedLeagueProvider === 'jolpica-f1';
+
     const fetchApiMatches = async (leagueId: number) => {
         setLeagueLoading(true);
         setApiMatches([]);
+        setApiRaces([]);
         setSelectedMatchIds(new Set());
         const res = await fetch(`/api/owner/api-leagues?leagueId=${leagueId}`);
-        if (res.ok) setApiMatches(await res.json());
+        if (res.ok) {
+            const data = await res.json();
+            const league = apiLeagues.find(l => l.id === leagueId);
+            if (league?.provider === 'jolpica-f1') setApiRaces(data);
+            else setApiMatches(data);
+        }
         setLeagueLoading(false);
     };
 
@@ -249,14 +263,16 @@ export default function ManagePage() {
         if (!selectedMatchIds.size) return;
         setImportLoading(true);
         setImportMsg('');
-        const res = await fetch('/api/matches/import', {
+        const endpoint = isRaceLeague ? '/api/matches/import-race' : '/api/matches/import';
+        const idsKey = isRaceLeague ? 'apiRaceIds' : 'apiMatchIds';
+        const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tournamentId, apiMatchIds: Array.from(selectedMatchIds) }),
+            body: JSON.stringify({ tournamentId, [idsKey]: Array.from(selectedMatchIds) }),
         });
         const data = await res.json();
         if (res.ok) {
-            setImportMsg(`✅ Imported ${data.imported} match${data.imported !== 1 ? 'es' : ''}${data.skipped ? ` (${data.skipped} already existed)` : ''}.`);
+            setImportMsg(`✅ Imported ${data.imported} ${isRaceLeague ? 'race' : 'match'}${data.imported !== 1 ? (isRaceLeague ? 's' : 'es') : ''}${data.skipped ? ` (${data.skipped} already existed)` : ''}.`);
             setSelectedMatchIds(new Set());
             fetchData();
         } else {
@@ -273,7 +289,7 @@ export default function ManagePage() {
         });
     };
 
-    const selectAll = () => setSelectedMatchIds(new Set(apiMatches.map(m => m.id)));
+    const selectAll = () => setSelectedMatchIds(new Set((isRaceLeague ? apiRaces : apiMatches).map(m => m.id)));
     const clearAll = () => setSelectedMatchIds(new Set());
 
     const fetchPresetList = async () => {
@@ -1001,14 +1017,14 @@ export default function ManagePage() {
                                     </div>
                                 )}
 
-                                {!leagueLoading && selectedLeague && apiMatches.length === 0 && (
-                                    <p style={{ color: 'var(--text-muted)' }}>No matches found for this league.</p>
+                                {!leagueLoading && selectedLeague && (isRaceLeague ? apiRaces : apiMatches).length === 0 && (
+                                    <p style={{ color: 'var(--text-muted)' }}>No {isRaceLeague ? 'races' : 'matches'} found for this league.</p>
                                 )}
 
-                                {!leagueLoading && apiMatches.length > 0 && (
+                                {!leagueLoading && (isRaceLeague ? apiRaces : apiMatches).length > 0 && (
                                     <>
                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{apiMatches.length} matches</span>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{(isRaceLeague ? apiRaces : apiMatches).length} {isRaceLeague ? 'races' : 'matches'}</span>
                                             <button className="btn btn-secondary btn-sm" onClick={selectAll}>Select All</button>
                                             <button className="btn btn-secondary btn-sm" onClick={clearAll}>Clear</button>
                                             <span style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: 700 }}>
@@ -1017,7 +1033,7 @@ export default function ManagePage() {
                                         </div>
 
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '60vh', overflowY: 'auto' }}>
-                                            {apiMatches.map((m: ApiMatch) => (
+                                            {!isRaceLeague && apiMatches.map((m: ApiMatch) => (
                                                 <label key={m.id} style={{
                                                     display: 'flex', alignItems: 'center', gap: '0.75rem',
                                                     padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-md)',
@@ -1042,6 +1058,39 @@ export default function ManagePage() {
                                                         color: m.status === 'finished' ? '#48bb78' : m.status === 'live' ? '#f5576c' : 'var(--text-muted)',
                                                     }}>
                                                         {m.status}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                            {isRaceLeague && apiRaces.map((r: ApiRace) => (
+                                                <label key={r.id} style={{
+                                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                                    padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-md)',
+                                                    border: `1px solid ${selectedMatchIds.has(r.id) ? 'var(--color-primary)' : 'var(--border-color)'}`,
+                                                    background: selectedMatchIds.has(r.id) ? 'rgba(56,189,248,0.07)' : 'var(--bg-card)',
+                                                    cursor: 'pointer', transition: 'all 0.15s',
+                                                }}>
+                                                    <input type="checkbox" checked={selectedMatchIds.has(r.id)}
+                                                        onChange={() => toggleMatch(r.id)}
+                                                        style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                                                    <div style={{ flex: 1 }}>
+                                                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                            Rd {r.round} — {r.race_name}
+                                                        </span>
+                                                        {r.status === 'finished' && r.p1_driver && (
+                                                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                                                🥇 {r.p1_driver} · 🥈 {r.p2_driver} · 🥉 {r.p3_driver}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                                        {fmt(r.race_time)}
+                                                    </div>
+                                                    <span style={{
+                                                        fontSize: '0.7rem', padding: '0.15rem 0.45rem', borderRadius: '999px', fontWeight: 700,
+                                                        background: r.status === 'finished' ? 'rgba(72,187,120,0.15)' : 'var(--bg-tertiary)',
+                                                        color: r.status === 'finished' ? '#48bb78' : 'var(--text-muted)',
+                                                    }}>
+                                                        {r.status}
                                                     </span>
                                                 </label>
                                             ))}
