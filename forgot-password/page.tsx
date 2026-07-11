@@ -36,17 +36,15 @@ export default function ForgotPasswordPage() {
         <div className="auth-split">
             {/* Left visual — same as login */}
             <div className="auth-visual">
-                <div className="auth-visual-orbs">
-                    <div className="av-orb av-orb-1" />
-                    <div className="av-orb av-orb-2" />
-                    <div className="av-orb av-orb-3" />
+                <div className="auth-visual-media" aria-hidden="true">
+                    <video src="/video/basketball.mp4" poster="/img/sport-basketball.png" autoPlay muted loop playsInline />
                 </div>
                 <div className="auth-visual-content">
                     <div className="auth-visual-logo">
                         <img src="/logo.png" alt="YourFriendsLeague" style={{ height: '120px', width: 'auto' }} />
                     </div>
                     <h2 className="auth-visual-headline">
-                        Predict.<br />Compete.<br /><span className="gradient-text">Win.</span>
+                        Predict.<br />Compete.<br />Win.
                     </h2>
                 </div>
             </div>
@@ -85,7 +83,7 @@ export default function ForgotPasswordPage() {
                                     className="btn btn-primary auth-submit-btn"
                                     disabled={loading}
                                 >
-                                    {loading ? '⏳ Sending…' : 'Send reset link →'}
+                                    {loading ? 'Sending…' : 'Send reset link'}
                                 </button>
                             </form>
 
@@ -98,7 +96,6 @@ export default function ForgotPasswordPage() {
                         </>
                     ) : (
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem' }}>📬</div>
                             <h1 className="auth-form-title">Check your inbox</h1>
                             <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: 1.7 }}>
                                 We sent a reset link to <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>.

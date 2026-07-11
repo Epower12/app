@@ -55,17 +55,15 @@ function ResetPasswordContent() {
     return (
         <div className="auth-split">
             <div className="auth-visual">
-                <div className="auth-visual-orbs">
-                    <div className="av-orb av-orb-1" />
-                    <div className="av-orb av-orb-2" />
-                    <div className="av-orb av-orb-3" />
+                <div className="auth-visual-media" aria-hidden="true">
+                    <video src="/video/racing.mp4" poster="/img/sport-racing.png" autoPlay muted loop playsInline />
                 </div>
                 <div className="auth-visual-content">
                     <div className="auth-visual-logo">
                         <img src="/logo.png" alt="YourFriendsLeague" style={{ height: '120px', width: 'auto' }} />
                     </div>
                     <h2 className="auth-visual-headline">
-                        Predict.<br />Compete.<br /><span className="gradient-text">Win.</span>
+                        Predict.<br />Compete.<br />Win.
                     </h2>
                 </div>
             </div>
@@ -75,14 +73,12 @@ function ResetPasswordContent() {
 
                     {phase === 'checking' && (
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⏳</div>
                             <p style={{ color: 'var(--text-muted)' }}>Verifying your link…</p>
                         </div>
                     )}
 
                     {phase === 'invalid' && (
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>❌</div>
                             <h1 className="auth-form-title">Link expired</h1>
                             <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
                                 This reset link is invalid or has expired. Links are valid for 1 hour.
@@ -112,8 +108,8 @@ function ResetPasswordContent() {
                                         autoFocus
                                         style={{ paddingRight: '3rem' }}
                                     />
-                                    <button type="button" className="auth-pw-toggle" onClick={() => setShowPw(p => !p)} aria-label="Toggle">
-                                        {showPw ? '🙈' : '👁️'}
+                                    <button type="button" className="auth-pw-toggle" onClick={() => setShowPw(p => !p)} aria-label="Toggle password visibility">
+                                        {showPw ? 'Hide' : 'Show'}
                                     </button>
                                 </div>
 
@@ -132,7 +128,7 @@ function ResetPasswordContent() {
                                 {error && <div className="auth-error">{error}</div>}
 
                                 <button type="submit" className="btn btn-primary auth-submit-btn" disabled={loading}>
-                                    {loading ? '⏳ Saving…' : 'Set new password →'}
+                                    {loading ? 'Saving…' : 'Set new password'}
                                 </button>
                             </form>
                         </>
@@ -140,8 +136,7 @@ function ResetPasswordContent() {
 
                     {phase === 'done' && (
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem' }}>✅</div>
-                            <h1 className="auth-form-title">Password updated!</h1>
+                            <h1 className="auth-form-title">Password updated</h1>
                             <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
                                 Your password has been changed. Redirecting to sign in…
                             </p>

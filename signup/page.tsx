@@ -33,7 +33,7 @@ function SignupPageInner() {
 
     const strength = getStrength(formData.password);
     const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][strength];
-    const strengthColors = ['', '#f5576c', '#fa709a', '#4facfe', '#00f2fe'];
+    const strengthColors = ['', '#ef4444', '#f59e0b', '#38bdf8', '#10b981'];
 
     // Preserve premium upgrade intent through OAuth signup too, same as the credentials path.
     // Falls back to a plain ?next= destination (e.g. /teams) when there's no premium intent.
@@ -84,10 +84,10 @@ function SignupPageInner() {
     };
 
     const perks = [
-        '🌍 Multi-sport predictions',
-        '📊 Smart points system',
-        '🏅 Live leaderboards',
-        '🎯 Track your accuracy',
+        'Multi-sport predictions',
+        'Points for precision',
+        'Live leaderboards',
+        'Private friend leagues',
     ];
 
     return (
@@ -146,7 +146,7 @@ function SignupPageInner() {
                                 className="auth-pw-toggle"
                                 onClick={() => setShowPassword(!showPassword)}
                             >
-                                {showPassword ? '🙈' : '👁️'}
+                                {showPassword ? 'Hide' : 'Show'}
                             </button>
                             {formData.password && (
                                 <div className="pw-strength-bar">
@@ -186,7 +186,7 @@ function SignupPageInner() {
                             className="btn btn-primary auth-submit-btn"
                             disabled={loading}
                         >
-                            {loading ? '⏳ Creating...' : <>Create Free Account <span className="btn-arrow">→</span></>}
+                            {loading ? 'Creating account…' : 'Create free account'}
                         </button>
 
                         <p style={{
@@ -212,26 +212,21 @@ function SignupPageInner() {
 
             {/* ---- Left Visual Panel ---- */}
             <div className="auth-visual">
-                <div className="auth-visual-orbs">
-                    <div className="av-orb av-orb-1" />
-                    <div className="av-orb av-orb-2" />
-                    <div className="av-orb av-orb-3" />
+                <div className="auth-visual-media" aria-hidden="true">
+                    <video src="/video/football.mp4" poster="/img/sport-football.png" autoPlay muted loop playsInline />
                 </div>
                 <div className="auth-visual-content">
                     <div className="auth-visual-logo">
                         <img src="/logo.png" alt="YourFriendsLeague" style={{ height: '120px', width: 'auto' }} />
                     </div>
                     <h2 className="auth-visual-headline">
-                        Join the<br />prediction<br /><span className="gradient-text">arena.</span>
+                        Join the<br />prediction<br />arena.
                     </h2>
                     <ul className="auth-perks">
                         {perks.map((p, i) => (
                             <li key={i} className="auth-perk">{p}</li>
                         ))}
                     </ul>
-                    <p className="auth-visual-sub" style={{ marginTop: '2rem' }}>
-                        Already thousands of fans compete daily. Your predictions start today.
-                    </p>
                 </div>
             </div>
         </div>

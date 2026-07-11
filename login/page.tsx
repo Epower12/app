@@ -38,43 +38,24 @@ function LoginPageInner() {
         }
     };
 
-    const sports = ['⚽', '🏒', '🎾', '🏀', '🏈', '⚾', '🏐', '🎱'];
-
     return (
         <div className="auth-split">
             {/* ---- Left Visual Panel ---- */}
             <div className="auth-visual">
-                <div className="auth-visual-orbs">
-                    <div className="av-orb av-orb-1" />
-                    <div className="av-orb av-orb-2" />
-                    <div className="av-orb av-orb-3" />
-                </div>
-                <div className="auth-floating-icons">
-                    {sports.map((icon, i) => (
-                        <span key={i} className={`auth-sport-icon auth-sport-icon-${i + 1}`}>{icon}</span>
-                    ))}
+                <div className="auth-visual-media" aria-hidden="true">
+                    <video src="/video/hockey.mp4" poster="/img/sport-hockey.png" autoPlay muted loop playsInline />
                 </div>
                 <div className="auth-visual-content">
                     <div className="auth-visual-logo">
                         <img src="/logo.png" alt="YourFriendsLeague" style={{ height: '120px', width: 'auto' }} />
                     </div>
                     <h2 className="auth-visual-headline">
-                        Predict.<br />Compete.<br /><span className="gradient-text">Win.</span>
+                        Predict.<br />Compete.<br />Win.
                     </h2>
                     <p className="auth-visual-sub">
-                        Join 10,000+ fans predicting match scores across Football, Hockey, Tennis and more.
+                        Pick exact scores before kick-off, earn points for precision, and climb
+                        a table only your friends can see.
                     </p>
-                    <div className="auth-visual-stats">
-                        <div className="auth-vstat">
-                            <strong>10K+</strong><span>Players</span>
-                        </div>
-                        <div className="auth-vstat">
-                            <strong>50+</strong><span>Tournaments</span>
-                        </div>
-                        <div className="auth-vstat">
-                            <strong>3</strong><span>Sports</span>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -123,7 +104,7 @@ function LoginPageInner() {
                                 onClick={() => setShowPassword(!showPassword)}
                                 aria-label="Toggle password visibility"
                             >
-                                {showPassword ? '🙈' : '👁️'}
+                                {showPassword ? 'Hide' : 'Show'}
                             </button>
                         </div>
 
@@ -134,11 +115,7 @@ function LoginPageInner() {
                             className="btn btn-primary auth-submit-btn"
                             disabled={loading}
                         >
-                            {loading ? (
-                                <span className="auth-spinner">⏳</span>
-                            ) : (
-                                <>Sign In <span className="btn-arrow">→</span></>
-                            )}
+                            {loading ? 'Signing in…' : 'Sign in'}
                         </button>
                     </form>
 
