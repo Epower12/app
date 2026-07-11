@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import ScoreStepper from '../../components/ScoreStepper';
+import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
 import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
 import { defaultMatchType, defaultSeriesFormat, SUPPORTED_SPORTS } from '@/lib/types';
 
@@ -16,7 +17,27 @@ interface Match {
     team_a_logo?: string | null; team_b_logo?: string | null;
     match_type?: MatchType; series_format?: SeriesFormat | null;
     race_session?: RaceSession | null;
-    p1_driver?: string | null; p2_driver?: string | null; p3_driver?: string | null;
+    top10_result?: string[] | null;
+    pole_result?: string | null; fastest_lap_result?: string | null; first_retirement_result?: string | null;
+    safety_car_result?: boolean | null;
+    positions_gained_result?: string | null; positions_lost_result?: string | null;
+    winning_margin_result?: string | null; retirements_result?: string | null;
+    is_season_finale?: boolean;
+}
+
+function raceResultToForm(m?: Match): RaceWeekendFormState {
+    if (!m) return { ...emptyRaceWeekendForm, picks: [] };
+    return {
+        picks: m.top10_result ?? [],
+        pole: m.pole_result ?? '',
+        fastestLap: m.fastest_lap_result ?? '',
+        firstRetirement: m.first_retirement_result ?? '',
+        safetyCar: m.safety_car_result === true ? 'yes' : m.safety_car_result === false ? 'no' : '',
+        positionsGained: m.positions_gained_result ?? '',
+        positionsLost: m.positions_lost_result ?? '',
+        winningMargin: (m.winning_margin_result as any) ?? '',
+        retirements: (m.retirements_result as any) ?? '',
+    };
 }
 
 interface RaceDriver { id: string; driver_name: string; team_name: string | null; number: number | null; }
@@ -86,7 +107,8 @@ export default function ManagePage() {
 
     // Race result state (per match, for race-type matches)
     const [editingRaceResult, setEditingRaceResult] = useState<string | null>(null);
-    const [raceResultForm, setRaceResultForm] = useState({ p1: '', p2: '', p3: '' });
+    const [raceResultForm, setRaceResultForm] = useState<RaceWeekendFormState>({ ...emptyRaceWeekendForm, picks: [] });
+    const [raceResultFinale, setRaceResultFinale] = useState(false);
     const [raceResultLoading, setRaceResultLoading] = useState(false);
 
     // Manual form state
@@ -217,12 +239,24 @@ export default function ManagePage() {
     };
 
     const saveRaceResult = async (matchId: string) => {
-        if (!raceResultForm.p1 || !raceResultForm.p2 || !raceResultForm.p3) return;
+        if (raceResultForm.picks.length < 3) return;
         setRaceResultLoading(true);
         const res = await fetch(`/api/matches/${matchId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ p1_driver: raceResultForm.p1, p2_driver: raceResultForm.p2, p3_driver: raceResultForm.p3, is_finished: true }),
+            body: JSON.stringify({
+                top10_result: raceResultForm.picks,
+                pole_result: raceResultForm.pole || null,
+                fastest_lap_result: raceResultForm.fastestLap || null,
+                first_retirement_result: raceResultForm.firstRetirement || null,
+                safety_car_result: raceResultForm.safetyCar === 'yes' ? true : raceResultForm.safetyCar === 'no' ? false : null,
+                positions_gained_result: raceResultForm.positionsGained || null,
+                positions_lost_result: raceResultForm.positionsLost || null,
+                winning_margin_result: raceResultForm.winningMargin || null,
+                retirements_result: raceResultForm.retirements || null,
+                is_season_finale: raceResultFinale,
+                is_finished: true,
+            }),
         });
         if (res.ok) { setEditingRaceResult(null); fetchData(); }
         setRaceResultLoading(false);
@@ -518,9 +552,14 @@ export default function ManagePage() {
                                                         border: '1px solid rgba(129,140,248,0.35)',
                                                     }}>⚔️ Knockout</span>
                                                 )}
-                                                {m.is_finished && m.match_type === 'race' && m.p1_driver && (
+                                                {m.is_finished && m.match_type === 'race' && m.top10_result && m.top10_result.length > 0 && (
                                                     <span style={{ fontSize: '0.78rem', color: '#fbbf24', fontWeight: 700 }}>
-                                                        🥇{m.p1_driver} 🥈{m.p2_driver} 🥉{m.p3_driver} ✓
+                                                        {m.top10_result.slice(0, 3).join(' · ')} ✓
+                                                    </span>
+                                                )}
+                                                {m.match_type === 'race' && m.is_season_finale && (
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'rgba(249,115,22,0.15)', color: '#f97316', border: '1px solid rgba(249,115,22,0.35)' }}>
+                                                        ×2 FINALE
                                                     </span>
                                                 )}
                                                 {m.is_finished && m.match_type !== 'race' && (
@@ -551,10 +590,11 @@ export default function ManagePage() {
                                                         className="btn btn-success btn-sm"
                                                         onClick={() => {
                                                             setEditingRaceResult(editingRaceResult === m.id ? null : m.id);
-                                                            setRaceResultForm({ p1: m.p1_driver ?? '', p2: m.p2_driver ?? '', p3: m.p3_driver ?? '' });
+                                                            setRaceResultForm(raceResultToForm(m));
+                                                            setRaceResultFinale(!!m.is_season_finale);
                                                         }}
                                                     >
-                                                        {m.is_finished ? '🔄 Podium' : '🏁 Enter Podium'}
+                                                        {m.is_finished ? 'Edit result' : 'Enter result'}
                                                     </button>
                                                 ) : (
                                                     <button
@@ -637,37 +677,34 @@ export default function ManagePage() {
                                             </div>
                                         )}
 
-                                        {/* Race podium result editor */}
+                                        {/* Race weekend result editor */}
                                         {editingRaceResult === m.id && m.match_type === 'race' && (
                                             <div style={{ marginTop: '0.75rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(251,191,36,0.2)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24' }}>🏁 Enter Race Podium</div>
-                                                {(['p1', 'p2', 'p3'] as const).map((pos, i) => {
-                                                    const colors = ['#fbbf24', '#94a3b8', '#b45309'];
-                                                    const labels = ['🥇 P1 — Winner', '🥈 P2', '🥉 P3'];
-                                                    return (
-                                                        <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: colors[i], minWidth: 80 }}>{labels[i]}</span>
-                                                            <select
-                                                                className="input"
-                                                                style={{ flex: 1, maxWidth: 260, color: colors[i], fontWeight: raceResultForm[pos] ? 700 : 400 }}
-                                                                value={raceResultForm[pos]}
-                                                                onChange={e => setRaceResultForm(f => ({ ...f, [pos]: e.target.value }))}
-                                                            >
-                                                                <option value="">— Select driver —</option>
-                                                                {drivers.map(d => (
-                                                                    <option key={d.id} value={d.driver_name}
-                                                                        disabled={Object.entries(raceResultForm).some(([k, v]) => k !== pos && v === d.driver_name)}>
-                                                                        {d.number ? `#${d.number} ` : ''}{d.driver_name}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                    );
-                                                })}
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24' }}>Enter race weekend result</div>
+
+                                                <RaceWeekendEditor
+                                                    tournamentId={tournamentId}
+                                                    raceSession={m.race_session ?? null}
+                                                    value={raceResultForm}
+                                                    onChange={setRaceResultForm}
+                                                    mode="result"
+                                                />
+
+                                                {m.race_session === 'race' && (
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                                        <input type="checkbox" checked={raceResultFinale}
+                                                            onChange={e => setRaceResultFinale(e.target.checked)}
+                                                            style={{ width: 16, height: 16, accentColor: '#f97316' }} />
+                                                        <span style={{ color: raceResultFinale ? '#f97316' : 'var(--text-secondary)', fontWeight: 600 }}>
+                                                            Season finale — all points count double (×2)
+                                                        </span>
+                                                    </label>
+                                                )}
+
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                     <button className="btn btn-success btn-sm" onClick={() => saveRaceResult(m.id)}
-                                                        disabled={raceResultLoading || !raceResultForm.p1 || !raceResultForm.p2 || !raceResultForm.p3}>
-                                                        {raceResultLoading ? '…' : '✓ Save Podium'}
+                                                        disabled={raceResultLoading || raceResultForm.picks.length < 3}>
+                                                        {raceResultLoading ? '…' : 'Save result'}
                                                     </button>
                                                     <button className="btn btn-secondary btn-sm" onClick={() => setEditingRaceResult(null)}>Cancel</button>
                                                 </div>

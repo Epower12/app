@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
-import { calculatePoints, calculateRacePoints } from '@/lib/scoring';
+import { calculatePoints, calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
 import { ensureMigrations } from '@/lib/migrations';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import type { LeaderboardEntry } from '@/lib/types';
@@ -58,10 +58,10 @@ export async function GET(
         const predMap = new Map<string, any>();
         allPredictions.forEach(p => predMap.set(`${p.user_id}-${p.match_id}`, p));
 
-        // Pre-fetch all race predictions
+        // Pre-fetch all race weekend predictions
         const { rows: allRacePreds } = await db.query(`
-            SELECT rp.* FROM race_predictions rp
-            INNER JOIN matches m ON rp.match_id = m.id
+            SELECT rwp.* FROM race_weekend_predictions rwp
+            INNER JOIN matches m ON rwp.match_id = m.id
             WHERE m.tournament_id = $1
         `, [tournamentId]);
 
@@ -81,12 +81,25 @@ export async function GET(
                     if (!rp) return;
 
                     let points = 0;
-                    let breakdown = '';
+                    let breakdown: { label: string; points: number }[] = [];
+                    const multiplier = raceSessionMultiplier(match.race_session, !!match.is_season_finale);
 
-                    if (match.is_finished && match.p1_driver) {
-                        const result = calculateRacePoints(
-                            { p1Driver: rp.p1_driver, p2Driver: rp.p2_driver, p3Driver: rp.p3_driver },
-                            { p1Driver: match.p1_driver, p2Driver: match.p2_driver, p3Driver: match.p3_driver }
+                    if (match.is_finished && match.top10_result) {
+                        const result = calculateRaceWeekendPoints(
+                            {
+                                picks: rp.picks, polePick: rp.pole_pick, fastestLapPick: rp.fastest_lap_pick,
+                                firstRetirementPick: rp.first_retirement_pick, safetyCarPick: rp.safety_car_pick,
+                                positionsGainedPick: rp.positions_gained_pick, positionsLostPick: rp.positions_lost_pick,
+                                winningMarginPick: rp.winning_margin_pick, retirementsPick: rp.retirements_pick,
+                            },
+                            {
+                                top10Result: match.top10_result, poleResult: match.pole_result,
+                                fastestLapResult: match.fastest_lap_result, firstRetirementResult: match.first_retirement_result,
+                                safetyCarResult: match.safety_car_result, positionsGainedResult: match.positions_gained_result,
+                                positionsLostResult: match.positions_lost_result, winningMarginResult: match.winning_margin_result,
+                                retirementsResult: match.retirements_result,
+                            },
+                            match.race_session, multiplier
                         );
                         points = result.total;
                         breakdown = result.breakdown;
@@ -100,14 +113,21 @@ export async function GET(
                         matchType: 'race',
                         seriesFormat: null,
                         raceSession: match.race_session ?? null,
-                        predictedP1: rp.p1_driver,
-                        predictedP2: rp.p2_driver,
-                        predictedP3: rp.p3_driver,
-                        actualP1: match.p1_driver ?? null,
-                        actualP2: match.p2_driver ?? null,
-                        actualP3: match.p3_driver ?? null,
+                        raceWeekend: {
+                            picks: rp.picks ?? [],
+                            actual: match.top10_result ?? null,
+                            pole: { pick: rp.pole_pick ?? null, actual: match.pole_result ?? null },
+                            fastestLap: { pick: rp.fastest_lap_pick ?? null, actual: match.fastest_lap_result ?? null },
+                            firstRetirement: { pick: rp.first_retirement_pick ?? null, actual: match.first_retirement_result ?? null },
+                            safetyCar: { pick: rp.safety_car_pick ?? null, actual: match.safety_car_result ?? null },
+                            positionsGained: { pick: rp.positions_gained_pick ?? null, actual: match.positions_gained_result ?? null },
+                            positionsLost: { pick: rp.positions_lost_pick ?? null, actual: match.positions_lost_result ?? null },
+                            winningMargin: { pick: rp.winning_margin_pick ?? null, actual: match.winning_margin_result ?? null },
+                            retirements: { pick: rp.retirements_pick ?? null, actual: match.retirements_result ?? null },
+                            multiplier,
+                            breakdown,
+                        },
                         points,
-                        pointsBreakdown: breakdown,
                     });
                 } else {
                     const pred = predMap.get(`${participant.id}-${match.id}`);

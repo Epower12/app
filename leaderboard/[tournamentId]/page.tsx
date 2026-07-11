@@ -8,13 +8,27 @@ import Navbar from '../../components/Navbar';
 import SportHeader, { sportImage } from '../../components/SportHeader';
 import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
 
+interface RaceWeekendEntry {
+    picks: string[];
+    actual: string[] | null;
+    pole: { pick: string | null; actual: string | null };
+    fastestLap: { pick: string | null; actual: string | null };
+    firstRetirement: { pick: string | null; actual: string | null };
+    safetyCar: { pick: boolean | null; actual: boolean | null };
+    positionsGained: { pick: string | null; actual: string | null };
+    positionsLost: { pick: string | null; actual: string | null };
+    winningMargin: { pick: string | null; actual: string | null };
+    retirements: { pick: string | null; actual: string | null };
+    multiplier: number;
+    breakdown: { label: string; points: number }[];
+}
+
 interface PredictionEntry {
     matchId: string; teamA: string; teamB: string;
     matchType: MatchType; seriesFormat: SeriesFormat | null; raceSession: RaceSession | null;
     predictedScoreA?: number; predictedScoreB?: number;
     actualScoreA?: number | null; actualScoreB?: number | null;
-    predictedP1?: string; predictedP2?: string; predictedP3?: string;
-    actualP1?: string | null; actualP2?: string | null; actualP3?: string | null;
+    raceWeekend?: RaceWeekendEntry;
     points: number; pointsBreakdown?: string;
 }
 
@@ -52,12 +66,9 @@ function badge(color: string, bg: string): React.CSSProperties {
 // Per-prediction breakdown row
 function PredRow({ p }: { p: PredictionEntry }) {
     if (p.matchType === 'race') {
-        const positions = [
-            { pos: 'P1', pred: p.predictedP1, actual: p.actualP1, pts: 5, color: '#fbbf24' },
-            { pos: 'P2', pred: p.predictedP2, actual: p.actualP2, pts: 3, color: '#94a3b8' },
-            { pos: 'P3', pred: p.predictedP3, actual: p.actualP3, pts: 2, color: '#b45309' },
-        ];
+        const rw = p.raceWeekend;
         const sessionBadge = p.raceSession ? SESSION_BADGE[p.raceSession] : null;
+        const podiumColors = ['#fbbf24', '#94a3b8', '#b45309'];
         return (
             <div className="lb-pred-row" style={{ flexDirection: 'column', gap: '0.4rem', alignItems: 'stretch' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
@@ -66,6 +77,9 @@ function PredRow({ p }: { p: PredictionEntry }) {
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: sessionBadge.color, letterSpacing: '0.04em' }}>
                                 {sessionBadge.label}
                             </span>
+                        )}
+                        {rw && rw.multiplier !== 1 && (
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f97316' }}>×{rw.multiplier}</span>
                         )}
                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{p.teamA}</span>
                     </div>
@@ -76,29 +90,40 @@ function PredRow({ p }: { p: PredictionEntry }) {
                         </span>
                     </div>
                 </div>
-                {p.predictedP1 && (
+
+                {rw && rw.picks.length > 0 && (
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {positions.map(({ pos, pred, actual, pts, color }) => {
-                            if (!pred) return null;
-                            const exact = pred === actual;
-                            const inPodium = !exact && actual !== undefined && [p.actualP1, p.actualP2, p.actualP3].includes(pred);
+                        {rw.picks.slice(0, 3).map((driver, i) => {
+                            const exact = rw.actual?.[i] === driver;
+                            const inTop10 = !exact && rw.actual?.includes(driver);
                             return (
-                                <div key={pos} style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', fontSize: '0.75rem' }}>
-                                    <span style={{ color, fontWeight: 800 }}>{pos}</span>
-                                    <span style={{ color: exact ? color : inPodium ? '#818cf8' : 'var(--text-muted)', fontWeight: exact ? 700 : 400 }}>
-                                        {pred}
+                                <div key={driver} style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', fontSize: '0.75rem' }}>
+                                    <span style={{ color: podiumColors[i], fontWeight: 800 }}>P{i + 1}</span>
+                                    <span style={{ color: exact ? podiumColors[i] : inTop10 ? '#818cf8' : 'var(--text-muted)', fontWeight: exact ? 700 : 400 }}>
+                                        {driver}
                                     </span>
-                                    {exact && <span style={{ color }}>✓</span>}
-                                    {inPodium && !exact && <span style={{ color: '#818cf8' }}>~</span>}
-                                    {!exact && !inPodium && actual && <span style={{ color: 'var(--text-muted)' }}>✗</span>}
                                 </div>
                             );
                         })}
+                        {rw.picks.length > 3 && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>+{rw.picks.length - 3} more</span>
+                        )}
                     </div>
                 )}
-                {p.actualP1 && (
+
+                {rw?.actual && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Actual: <span style={{ color: '#fbbf24' }}>{p.actualP1}</span> · <span style={{ color: '#94a3b8' }}>{p.actualP2}</span> · <span style={{ color: '#b45309' }}>{p.actualP3}</span>
+                        Actual top 3: <span style={{ color: '#fbbf24' }}>{rw.actual[0]}</span> · <span style={{ color: '#94a3b8' }}>{rw.actual[1]}</span> · <span style={{ color: '#b45309' }}>{rw.actual[2]}</span>
+                    </div>
+                )}
+
+                {rw && rw.breakdown.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {rw.breakdown.map((b, i) => (
+                            <span key={i} style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'rgba(56,189,248,0.1)', color: 'var(--color-primary)' }}>
+                                {b.label} {b.points >= 0 ? '+' : ''}{b.points}
+                            </span>
+                        ))}
                     </div>
                 )}
             </div>
@@ -242,7 +267,7 @@ export default function LeaderboardPage() {
                                     const isOpen = expanded === entry.userId;
                                     const medals = ['🥇', '🥈', '🥉'];
                                     const scored = entry.predictions.filter(p =>
-                                        p.matchType === 'race' ? p.actualP1 !== null : p.actualScoreA !== null
+                                        p.matchType === 'race' ? !!p.raceWeekend?.actual : p.actualScoreA !== null
                                     );
                                     return (
                                         <div key={entry.userId}>

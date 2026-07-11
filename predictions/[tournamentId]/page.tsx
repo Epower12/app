@@ -8,9 +8,9 @@ import Navbar from '../../components/Navbar';
 import SportHeader, { sportImage } from '../../components/SportHeader';
 import ScoreStepper from '../../components/ScoreStepper';
 import SeriesPredictor from '../../components/SeriesPredictor';
-import RacePredictor from '../../components/RacePredictor';
+import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
 import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
-import { scoringRulesLabel } from '@/lib/scoring';
+import { scoringRulesLabel, calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
 
 interface Match {
     id: string; team_a: string; team_b: string; scheduled_time: number;
@@ -18,12 +18,38 @@ interface Match {
     is_finished: boolean; sport: string; is_playoff: boolean;
     team_a_logo?: string | null; team_b_logo?: string | null;
     match_type: MatchType; series_format: SeriesFormat | null; race_session: RaceSession | null;
-    p1_driver?: string | null; p2_driver?: string | null; p3_driver?: string | null;
+    top10_result?: string[] | null;
+    pole_result?: string | null; fastest_lap_result?: string | null; first_retirement_result?: string | null;
+    safety_car_result?: boolean | null;
+    positions_gained_result?: string | null; positions_lost_result?: string | null;
+    winning_margin_result?: string | null; retirements_result?: string | null;
+    is_season_finale?: boolean;
 }
 
 interface ScorePrediction { id: string; match_id: string; team_a_score: number; team_b_score: number; }
-interface RacePrediction { id: string; match_id: string; p1_driver: string; p2_driver: string; p3_driver: string; }
+interface RaceWeekendPrediction {
+    id: string; match_id: string; picks: string[];
+    pole_pick: string | null; fastest_lap_pick: string | null; first_retirement_pick: string | null;
+    safety_car_pick: boolean | null;
+    positions_gained_pick: string | null; positions_lost_pick: string | null;
+    winning_margin_pick: string | null; retirements_pick: string | null;
+}
 interface MatchStats { total: number; homeWin: number; draw: number; awayWin: number; teamA: string; teamB: string; topPredictions: { score: string; count: number; pct: number }[]; }
+
+function raceWeekendToForm(rp?: RaceWeekendPrediction): RaceWeekendFormState {
+    if (!rp) return { ...emptyRaceWeekendForm, picks: [] };
+    return {
+        picks: rp.picks ?? [],
+        pole: rp.pole_pick ?? '',
+        fastestLap: rp.fastest_lap_pick ?? '',
+        firstRetirement: rp.first_retirement_pick ?? '',
+        safetyCar: rp.safety_car_pick === true ? 'yes' : rp.safety_car_pick === false ? 'no' : '',
+        positionsGained: rp.positions_gained_pick ?? '',
+        positionsLost: rp.positions_lost_pick ?? '',
+        winningMargin: (rp.winning_margin_pick as any) ?? '',
+        retirements: (rp.retirements_pick as any) ?? '',
+    };
+}
 
 const SESSION_BADGE: Record<string, { label: string; color: string; bg: string; border: string }> = {
     qualifying:       { label: 'QUALI',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
@@ -55,7 +81,7 @@ export default function PredictionsPage() {
     const tournamentId = params.tournamentId as string;
     const [matches, setMatches] = useState<Match[]>([]);
     const [scorePreds, setScorePreds] = useState<Record<string, ScorePrediction>>({});
-    const [racePreds, setRacePreds] = useState<Record<string, RacePrediction>>({});
+    const [racePreds, setRacePreds] = useState<Record<string, RaceWeekendPrediction>>({});
     const [tournamentName, setTournamentName] = useState('');
     const [tournamentSport, setTournamentSport] = useState('');
     const [isTournamentActive, setIsTournamentActive] = useState(true);
@@ -73,7 +99,7 @@ export default function PredictionsPage() {
             const [mRes, pRes, rpRes, tRes] = await Promise.all([
                 fetch(`/api/matches?tournamentId=${tournamentId}`),
                 fetch(`/api/predictions?tournamentId=${tournamentId}`),
-                fetch(`/api/race-predictions?tournamentId=${tournamentId}`),
+                fetch(`/api/race-weekend-predictions?tournamentId=${tournamentId}`),
                 fetch(`/api/tournaments?id=${tournamentId}`),
             ]);
             const [mData, pData, rpData, tData] = await Promise.all([mRes.json(), pRes.json(), rpRes.json(), tRes.json()]);
@@ -83,8 +109,8 @@ export default function PredictionsPage() {
             if (Array.isArray(pData)) pData.forEach((p: ScorePrediction) => { scoreMap[p.match_id] = p; });
             setScorePreds(scoreMap);
 
-            const raceMap: Record<string, RacePrediction> = {};
-            if (Array.isArray(rpData)) rpData.forEach((p: RacePrediction) => { raceMap[p.match_id] = p; });
+            const raceMap: Record<string, RaceWeekendPrediction> = {};
+            if (Array.isArray(rpData)) rpData.forEach((p: RaceWeekendPrediction) => { raceMap[p.match_id] = p; });
             setRacePreds(raceMap);
 
             setTournamentName(tData?.name ?? '');
@@ -115,11 +141,17 @@ export default function PredictionsPage() {
         fetchData();
     };
 
-    const submitRacePrediction = async (matchId: string, p1Driver: string, p2Driver: string, p3Driver: string) => {
-        await fetch('/api/race-predictions', {
+    const submitRaceWeekendPrediction = async (matchId: string, form: RaceWeekendFormState) => {
+        await fetch('/api/race-weekend-predictions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ matchId, p1Driver, p2Driver, p3Driver }),
+            body: JSON.stringify({
+                matchId, picks: form.picks,
+                polePick: form.pole, fastestLapPick: form.fastestLap, firstRetirementPick: form.firstRetirement,
+                safetyCarPick: form.safetyCar,
+                positionsGainedPick: form.positionsGained, positionsLostPick: form.positionsLost,
+                winningMarginPick: form.winningMargin, retirementsPick: form.retirements,
+            }),
         });
         fetchData();
     };
@@ -216,7 +248,7 @@ export default function PredictionsPage() {
                             {upcomingMatches.map(m => (
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
-                                    onSubmitScore={submitScorePrediction} onSubmitRace={submitRacePrediction}
+                                    onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
                                     locked={!isTournamentActive}
                                     isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
@@ -234,7 +266,7 @@ export default function PredictionsPage() {
                             {liveMatches.map(m => (
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
-                                    onSubmitScore={submitScorePrediction} onSubmitRace={submitRacePrediction}
+                                    onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
                                     locked isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
                             ))}
@@ -252,7 +284,7 @@ export default function PredictionsPage() {
                             {finishedMatches.map(m => (
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
-                                    onSubmitScore={submitScorePrediction} onSubmitRace={submitRacePrediction}
+                                    onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
                                     locked showResult isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
                             ))}
@@ -269,15 +301,15 @@ export default function PredictionsPage() {
 function PredCard({
     match, tournamentId,
     scorePrediction, racePrediction,
-    onSubmitScore, onSubmitRace,
+    onSubmitScore, onSubmitRaceWeekend,
     locked = false, showResult = false,
     isPremium = false, onLoadStats,
     stats, statsOpen, statsLoading,
 }: {
     match: Match; tournamentId: string;
-    scorePrediction?: ScorePrediction; racePrediction?: RacePrediction;
+    scorePrediction?: ScorePrediction; racePrediction?: RaceWeekendPrediction;
     onSubmitScore: (id: string, a: number, b: number) => void;
-    onSubmitRace: (id: string, p1: string, p2: string, p3: string) => void;
+    onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => void;
     locked?: boolean; showResult?: boolean;
     isPremium?: boolean; onLoadStats?: (id: string) => void;
     stats?: MatchStats; statsOpen?: boolean; statsLoading?: boolean;
@@ -286,7 +318,7 @@ function PredCard({
 
     if (matchType === 'race') {
         return <RaceCard match={match} tournamentId={tournamentId} racePrediction={racePrediction}
-            onSubmitRace={onSubmitRace} locked={locked} showResult={showResult} />;
+            onSubmitRaceWeekend={onSubmitRaceWeekend} locked={locked} showResult={showResult} />;
     }
 
     return <ScoreCard match={match} tournamentId={tournamentId}
@@ -298,17 +330,17 @@ function PredCard({
 
 // ─── RaceCard ────────────────────────────────────────────────────────────────
 
-function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, showResult }: {
-    match: Match; tournamentId: string; racePrediction?: RacePrediction;
-    onSubmitRace: (id: string, p1: string, p2: string, p3: string) => void;
+function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, locked, showResult }: {
+    match: Match; tournamentId: string; racePrediction?: RaceWeekendPrediction;
+    onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => void;
     locked?: boolean; showResult?: boolean;
 }) {
     const [editing, setEditing] = useState(false);
-    const [podium, setPodium] = useState({ p1: racePrediction?.p1_driver ?? '', p2: racePrediction?.p2_driver ?? '', p3: racePrediction?.p3_driver ?? '' });
+    const [form, setForm] = useState<RaceWeekendFormState>(raceWeekendToForm(racePrediction));
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        setPodium({ p1: racePrediction?.p1_driver ?? '', p2: racePrediction?.p2_driver ?? '', p3: racePrediction?.p3_driver ?? '' });
+        setForm(raceWeekendToForm(racePrediction));
     }, [racePrediction]);
 
     const sessionBadge = match.race_session ? SESSION_BADGE[match.race_session] : null;
@@ -318,32 +350,33 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
     const minutes = Math.floor((timeLeft % 3600) / 60);
 
     const handleSave = async () => {
-        if (!podium.p1 || !podium.p2 || !podium.p3) return;
+        if (form.picks.length < 3) return;
         setSaving(true);
-        await onSubmitRace(match.id, podium.p1, podium.p2, podium.p3);
+        await onSubmitRaceWeekend(match.id, form);
         setEditing(false);
         setSaving(false);
     };
 
     // Points display for finished race
-    const raceResult = () => {
-        if (!showResult || !match.p1_driver || !racePrediction) return null;
-        const actual = [match.p1_driver, match.p2_driver, match.p3_driver];
-        const pred = [racePrediction.p1_driver, racePrediction.p2_driver, racePrediction.p3_driver];
-        let pts = 0;
-        const positionPts = [5, 3, 2];
-        const details: string[] = [];
-        const exactIdx = new Set<number>();
-        for (let i = 0; i < 3; i++) {
-            if (pred[i] === actual[i]) { pts += positionPts[i]; exactIdx.add(i); details.push(`P${i+1} ✓`); }
-        }
-        for (let i = 0; i < 3; i++) {
-            if (exactIdx.has(i)) continue;
-            if (actual.some((d, j) => d === pred[i] && !exactIdx.has(j))) { pts += 1; details.push(`P${i+1} ~`); }
-        }
-        return { pts, details };
-    };
-    const result = raceResult();
+    const multiplier = raceSessionMultiplier(match.race_session ?? null, !!match.is_season_finale);
+    const result = (showResult && match.top10_result && racePrediction)
+        ? calculateRaceWeekendPoints(
+            {
+                picks: racePrediction.picks, polePick: racePrediction.pole_pick,
+                fastestLapPick: racePrediction.fastest_lap_pick, firstRetirementPick: racePrediction.first_retirement_pick,
+                safetyCarPick: racePrediction.safety_car_pick,
+                positionsGainedPick: racePrediction.positions_gained_pick, positionsLostPick: racePrediction.positions_lost_pick,
+                winningMarginPick: racePrediction.winning_margin_pick, retirementsPick: racePrediction.retirements_pick,
+            },
+            {
+                top10Result: match.top10_result ?? null, poleResult: match.pole_result, fastestLapResult: match.fastest_lap_result,
+                firstRetirementResult: match.first_retirement_result, safetyCarResult: match.safety_car_result,
+                positionsGainedResult: match.positions_gained_result, positionsLostResult: match.positions_lost_result,
+                winningMarginResult: match.winning_margin_result, retirementsResult: match.retirements_result,
+            },
+            match.race_session ?? null, multiplier
+        )
+        : null;
 
     return (
         <div className="match-card" style={{
@@ -362,23 +395,22 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
                                 letterSpacing: '0.06em',
                             }}>{sessionBadge.label}</span>
                         )}
+                        {match.is_season_finale && (
+                            <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.15rem 0.55rem', borderRadius: '999px', background: 'rgba(249,115,22,0.15)', color: '#f97316', border: '1px solid rgba(249,115,22,0.35)' }}>
+                                ×2 FINALE
+                            </span>
+                        )}
                         <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{match.team_a}</span>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{match.team_b || 'Grand Prix'}</span>
                 </div>
 
-                {showResult && match.p1_driver ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
-                        {[
-                            { pos: 'P1', driver: match.p1_driver, color: '#fbbf24' },
-                            { pos: 'P2', driver: match.p2_driver, color: '#94a3b8' },
-                            { pos: 'P3', driver: match.p3_driver, color: '#b45309' },
-                        ].map(({ pos, driver, color }) => driver && (
-                            <div key={pos} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.8rem' }}>
-                                <span style={{ color, fontWeight: 800, minWidth: 24 }}>{pos}</span>
-                                <span style={{ color: 'var(--text-secondary)' }}>{driver}</span>
-                            </div>
-                        ))}
+                {showResult && match.top10_result ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'flex-end', maxWidth: 200 }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>TOP 3</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
+                            {match.top10_result.slice(0, 3).join(' · ')}
+                        </span>
                     </div>
                 ) : !locked && (
                     <span className="match-vs-badge">VS</span>
@@ -388,10 +420,12 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
             {/* Result points overlay */}
             {result && (
                 <div style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 800, fontSize: '1rem', color: result.pts >= 8 ? '#fbbf24' : result.pts >= 5 ? '#38bdf8' : result.pts > 0 ? '#818cf8' : 'var(--text-muted)' }}>
-                        +{result.pts} pts
+                    <span style={{ fontWeight: 800, fontSize: '1rem', color: result.total >= 10 ? '#fbbf24' : result.total >= 5 ? '#38bdf8' : result.total > 0 ? '#818cf8' : 'var(--text-muted)' }}>
+                        +{result.total} pts
                     </span>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{result.details.join(' · ')}</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {result.breakdown.length ? result.breakdown.map(b => `${b.label} +${b.points}`).join(' · ') : 'No points'}
+                    </span>
                 </div>
             )}
 
@@ -401,37 +435,38 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
 
                 {editing && !locked ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', paddingTop: '0.5rem' }}>
-                        <RacePredictor
+                        <RaceWeekendEditor
                             tournamentId={tournamentId}
-                            matchId={match.id}
                             raceSession={match.race_session}
-                            value={podium.p1 ? podium : null}
-                            onChange={(p1, p2, p3) => setPodium({ p1, p2, p3 })}
+                            value={form}
+                            onChange={setForm}
+                            mode="predict"
                         />
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                             <button className="btn btn-success btn-sm" onClick={handleSave}
-                                disabled={saving || !podium.p1 || !podium.p2 || !podium.p3}>
-                                {saving ? '…' : 'Save podium'}
+                                disabled={saving || form.picks.length < 3}>
+                                {saving ? '…' : 'Save prediction'}
                             </button>
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
                         </div>
                     </div>
                 ) : racePrediction && !editing ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>My pick:</span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            {[
-                                { label: 'P1', driver: racePrediction.p1_driver, color: '#fbbf24' },
-                                { label: 'P2', driver: racePrediction.p2_driver, color: '#94a3b8' },
-                                { label: 'P3', driver: racePrediction.p3_driver, color: '#b45309' },
-                            ].map(({ label, driver, color }) => (
-                                <span key={label} style={{ fontSize: '0.8rem', fontWeight: 700, color }}>{label}: {driver}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>My picks:</span>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {racePrediction.picks.slice(0, 3).map((driver, i) => (
+                                <span key={driver} style={{ fontSize: '0.8rem', fontWeight: 700, color: ['#fbbf24', '#94a3b8', '#b45309'][i] }}>
+                                    P{i + 1}: {driver}
+                                </span>
                             ))}
+                            {racePrediction.picks.length > 3 && (
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>+{racePrediction.picks.length - 3} more</span>
+                            )}
                         </div>
                         {!locked && <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>Edit</button>}
                     </div>
                 ) : !locked ? (
-                    <button className="btn btn-primary" onClick={() => setEditing(true)}>Pick podium</button>
+                    <button className="btn btn-primary" onClick={() => setEditing(true)}>Predict this weekend</button>
                 ) : (
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No prediction made</span>
                 )}

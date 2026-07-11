@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import db from '@/lib/db';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { ensureMigrations } from '@/lib/migrations';
-import { calculateRacePoints } from '@/lib/scoring';
+import { calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
 
 // PATCH - Update match (tournament creator only)
 export async function PATCH(
@@ -39,7 +39,11 @@ export async function PATCH(
             'is_finished', 'sport', 'is_playoff',
             'match_type', 'series_format', 'race_session',
             'p1_driver', 'p2_driver', 'p3_driver',
+            'top10_result', 'pole_result', 'fastest_lap_result', 'first_retirement_result', 'safety_car_result',
+            'positions_gained_result', 'positions_lost_result', 'winning_margin_result', 'retirements_result',
+            'is_season_finale',
         ];
+        const jsonbFields = new Set(['top10_result']);
 
         const updateFields: string[] = [];
         const values: any[] = [];
@@ -48,7 +52,7 @@ export async function PATCH(
         for (const [key, value] of Object.entries(updates)) {
             if (allowedFields.includes(key)) {
                 updateFields.push(`${key} = $${paramIndex++}`);
-                values.push(value);
+                values.push(jsonbFields.has(key) && Array.isArray(value) ? JSON.stringify(value) : value);
             }
         }
 
@@ -81,22 +85,39 @@ export async function PATCH(
                 `);
 
                 if (updated.match_type === 'race') {
-                    // Notify based on race predictions
+                    // Notify based on race weekend predictions (Top 10 + bonus questions)
                     const { rows: raceParticipants } = await db.query(`
-                        SELECT tp.user_id, rp.p1_driver, rp.p2_driver, rp.p3_driver
+                        SELECT tp.user_id, rwp.picks, rwp.pole_pick, rwp.fastest_lap_pick, rwp.first_retirement_pick,
+                               rwp.safety_car_pick, rwp.positions_gained_pick, rwp.positions_lost_pick,
+                               rwp.winning_margin_pick, rwp.retirements_pick
                         FROM tournament_participants tp
-                        LEFT JOIN race_predictions rp ON rp.match_id = $1 AND rp.user_id = tp.user_id
+                        LEFT JOIN race_weekend_predictions rwp ON rwp.match_id = $1 AND rwp.user_id = tp.user_id
                         WHERE tp.tournament_id = $2
                     `, [matchId, updated.tournament_id]);
 
+                    const multiplier = raceSessionMultiplier(updated.race_session, !!updated.is_season_finale);
+
                     for (const p of raceParticipants) {
-                        if (!p.p1_driver || !updated.p1_driver) continue;
-                        const { total, breakdown } = calculateRacePoints(
-                            { p1Driver: p.p1_driver, p2Driver: p.p2_driver, p3Driver: p.p3_driver },
-                            { p1Driver: updated.p1_driver, p2Driver: updated.p2_driver, p3Driver: updated.p3_driver }
+                        if (!p.picks || !updated.top10_result) continue;
+                        const { total, breakdown } = calculateRaceWeekendPoints(
+                            {
+                                picks: p.picks, polePick: p.pole_pick, fastestLapPick: p.fastest_lap_pick,
+                                firstRetirementPick: p.first_retirement_pick, safetyCarPick: p.safety_car_pick,
+                                positionsGainedPick: p.positions_gained_pick, positionsLostPick: p.positions_lost_pick,
+                                winningMarginPick: p.winning_margin_pick, retirementsPick: p.retirements_pick,
+                            },
+                            {
+                                top10Result: updated.top10_result, poleResult: updated.pole_result,
+                                fastestLapResult: updated.fastest_lap_result, firstRetirementResult: updated.first_retirement_result,
+                                safetyCarResult: updated.safety_car_result, positionsGainedResult: updated.positions_gained_result,
+                                positionsLostResult: updated.positions_lost_result, winningMarginResult: updated.winning_margin_result,
+                                retirementsResult: updated.retirements_result,
+                            },
+                            updated.race_session, multiplier
                         );
                         const sessionLabel = updated.race_session ? ` (${updated.race_session})` : '';
-                        const message = `🏎️ ${updated.team_a}${sessionLabel} — ${breakdown} → +${total} pts`;
+                        const breakdownStr = breakdown.map(b => `${b.label} +${b.points}`).join(', ') || 'no points';
+                        const message = `${updated.team_a}${sessionLabel} — ${breakdownStr} → +${total} pts`;
                         await db.query(
                             'INSERT INTO notifications (user_id, tournament_id, match_id, message, points_earned) VALUES ($1, $2, $3, $4, $5)',
                             [p.user_id, updated.tournament_id, matchId, message, total]
