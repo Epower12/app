@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
+import SportHeader, { sportImage } from '../../components/SportHeader';
 import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
 
 interface PredictionEntry {
@@ -23,25 +24,25 @@ interface LeaderboardEntry {
 }
 
 const SESSION_BADGE: Record<string, { label: string; color: string }> = {
-    qualifying:        { label: '⚡ QUALI',  color: '#38bdf8' },
-    sprint_qualifying: { label: '⚡ SQ',     color: '#818cf8' },
-    sprint:            { label: '🔰 SPRINT', color: '#fb923c' },
-    race:              { label: '🏁 RACE',   color: '#fbbf24' },
+    qualifying:        { label: 'QUALI',  color: '#38bdf8' },
+    sprint_qualifying: { label: 'SQ',     color: '#818cf8' },
+    sprint:            { label: 'SPRINT', color: '#fb923c' },
+    race:              { label: 'RACE',   color: '#fbbf24' },
 };
 
 // Scoring badge — visual chip per points tier
 function ScoreBadge({ pts, matchType }: { pts: number; matchType: MatchType }) {
     if (matchType === 'race') {
-        if (pts >= 10)      return <span style={badge('#fbbf24', 'rgba(251,191,36,0.15)')}>🏆 Perfect</span>;
-        if (pts >= 8)       return <span style={badge('#fbbf24', 'rgba(251,191,36,0.12)')}>🥇 Excellent</span>;
-        if (pts >= 5)       return <span style={badge('#38bdf8', 'rgba(56,189,248,0.12)')}>🎯 Good</span>;
-        if (pts >= 1)       return <span style={badge('#818cf8', 'rgba(129,140,248,0.12)')}>〰 Partial</span>;
-        return               <span style={badge('var(--text-muted)', 'var(--bg-tertiary)')}>✗</span>;
+        if (pts >= 10)      return <span style={badge('#fbbf24', 'rgba(251,191,36,0.15)')}>Perfect</span>;
+        if (pts >= 8)       return <span style={badge('#fbbf24', 'rgba(251,191,36,0.12)')}>Excellent</span>;
+        if (pts >= 5)       return <span style={badge('#38bdf8', 'rgba(56,189,248,0.12)')}>Good</span>;
+        if (pts >= 1)       return <span style={badge('#818cf8', 'rgba(129,140,248,0.12)')}>Partial</span>;
+        return               <span style={badge('var(--text-muted)', 'var(--bg-tertiary)')}>Miss</span>;
     }
-    if (pts === 5) return <span style={badge('#4facfe', 'rgba(79,172,254,0.12)')}>🎯 Exact</span>;
-    if (pts === 3) return <span style={badge('#48bb78', 'rgba(72,187,120,0.12)')}>📐 Winner+margin</span>;
-    if (pts === 2) return <span style={badge('#667eea', 'rgba(102,126,234,0.12)')}>✓ Winner</span>;
-    return                 <span style={badge('var(--text-muted)', 'var(--bg-tertiary)')}>✗</span>;
+    if (pts === 5) return <span style={badge('#4facfe', 'rgba(79,172,254,0.12)')}>Exact</span>;
+    if (pts === 3) return <span style={badge('#48bb78', 'rgba(72,187,120,0.12)')}>Winner + margin</span>;
+    if (pts === 2) return <span style={badge('#667eea', 'rgba(102,126,234,0.12)')}>Winner</span>;
+    return                 <span style={badge('var(--text-muted)', 'var(--bg-tertiary)')}>Miss</span>;
 }
 
 function badge(color: string, bg: string): React.CSSProperties {
@@ -158,17 +159,17 @@ export default function LeaderboardPage() {
     const top3 = leaderboard.slice(0, 3);
     const podiumOrder = top3.length >= 2 ? [top3[1], top3[0], top3[2]].filter(Boolean) : top3;
 
-    // Sport-specific accent colour for header
-    const sportAccent: Record<string, { color: string; glow: string; icon: string }> = {
-        'Formula 1': { color: '#ef4444', glow: 'rgba(239,68,68,0.15)', icon: '🏎️' },
-        'MotoGP':    { color: '#f97316', glow: 'rgba(249,115,22,0.15)', icon: '🏍️' },
-        'Counter-Strike': { color: '#818cf8', glow: 'rgba(129,140,248,0.12)', icon: '🔫' },
-        'League of Legends': { color: '#f59e0b', glow: 'rgba(245,158,11,0.12)', icon: '🎮' },
-        'Dota 2':    { color: '#ef4444', glow: 'rgba(239,68,68,0.12)', icon: '🐉' },
-        'Valorant':  { color: '#ff4655', glow: 'rgba(255,70,85,0.12)', icon: '🔮' },
-        'Tennis':    { color: '#84cc16', glow: 'rgba(132,204,22,0.12)', icon: '🎾' },
+    // Sport-specific accent colour for points highlights
+    const sportAccent: Record<string, { color: string }> = {
+        'Formula 1': { color: '#ef4444' },
+        'MotoGP':    { color: '#f97316' },
+        'Counter-Strike': { color: '#818cf8' },
+        'League of Legends': { color: '#f59e0b' },
+        'Dota 2':    { color: '#ef4444' },
+        'Valorant':  { color: '#ff4655' },
+        'Tennis':    { color: '#84cc16' },
     };
-    const accent = sportAccent[tournamentSport] ?? { color: '#38bdf8', glow: 'rgba(56,189,248,0.1)', icon: '📊' };
+    const accent = sportAccent[tournamentSport] ?? { color: '#38bdf8' };
 
     if (status === 'loading' || loading) {
         return (
@@ -184,34 +185,26 @@ export default function LeaderboardPage() {
         <div className="app-page">
             <Navbar />
             <div className="container">
-                {/* Header — sport identity accent */}
-                <div className="app-page-header" style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    borderBottom: `2px solid ${accent.color}33`,
-                    paddingBottom: '1rem',
-                    background: `linear-gradient(90deg, ${accent.glow} 0%, transparent 60%)`,
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1rem',
-                    marginBottom: '1.5rem',
-                }}>
-                    <div>
-                        <h1 className="app-page-title" style={{ color: accent.color }}>
-                            {accent.icon} Rankings
-                        </h1>
-                        {tournamentName && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{tournamentName}</p>}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">🎯 Predict</Link>
-                        <Link href="/tournaments" className="btn btn-secondary">← Leagues</Link>
-                    </div>
-                </div>
+                {/* Header — sport imagery backdrop */}
+                <SportHeader
+                    title="Rankings"
+                    subtitle={tournamentName || undefined}
+                    image={sportImage(tournamentSport)}
+                    actions={
+                        <>
+                            <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Predict</Link>
+                            <Link href="/tournaments" className="btn btn-secondary">All leagues</Link>
+                        </>
+                    }
+                />
 
                 {leaderboard.length === 0 ? (
                     <div className="empty-state">
-                        <div className="empty-state-icon">📊</div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/img/sport-scoreboard.png" alt="" className="empty-state-img" />
                         <h3>No predictions yet</h3>
                         <p>Be the first to make a prediction and claim the top spot!</p>
-                        <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Make a Prediction</Link>
+                        <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Make a prediction</Link>
                     </div>
                 ) : (
                     <>

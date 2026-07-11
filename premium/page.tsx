@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
+import SportHeader, { sportImage } from '../components/SportHeader';
 
 interface Tournament {
     id: string;
@@ -20,11 +21,6 @@ interface Tournament {
 
 interface Sport { id: string; name: string; }
 
-const SPORT_ICONS: Record<string, string> = {
-    Football: '⚽', 'Ice Hockey': '🏒', Tennis: '🎾', Basketball: '🏀',
-    Volleyball: '🏐', Baseball: '⚾', 'Formula 1': '🏎️', MotoGP: '🏍️',
-};
-const sportIcon = (s: string) => SPORT_ICONS[s] ?? '🏅';
 
 export default function PremiumPage() {
     const { data: session, status } = useSession();
@@ -87,12 +83,12 @@ export default function PremiumPage() {
         });
         const data = await res.json();
         if (res.ok) {
-            setCreateMsg('✅ League created!');
+            setCreateMsg('League created!');
             setForm({ name: '', sport: 'Ice Hockey', leagueType: 'private', description: '', maxParticipants: 0, customSport: '' });
             setShowCreate(false);
             fetchTournaments();
         } else {
-            setCreateMsg(`❌ ${data.error}`);
+            setCreateMsg(`Error: ${data.error}`);
         }
         setCreating(false);
     };
@@ -125,24 +121,11 @@ export default function PremiumPage() {
             <div className="container">
 
                 {/* Header */}
-                <div className="app-page-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{
-                            width: 52, height: 52, borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #f97316, #fb923c)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem',
-                            boxShadow: '0 4px 20px rgba(249,115,22,0.4)',
-                        }}>💎</div>
-                        <div>
-                            <h1 className="app-page-title" style={{ marginBottom: '0.1rem' }}>
-                                {user?.role === 'admin' ? '🛡️ Admin Dashboard' : '💎 Premium Dashboard'}
-                            </h1>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-                                Welcome back, <strong style={{ color: 'var(--text-secondary)' }}>{user?.name || user?.username}</strong>
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <SportHeader
+                    title={user?.role === 'admin' ? 'Admin dashboard' : 'Premium dashboard'}
+                    subtitle={<>Welcome back, <strong style={{ color: 'var(--text-primary)' }}>{user?.name || user?.username}</strong></>}
+                    image="/img/cta-celebration.png"
+                />
 
                 {/* What Premium gives you */}
                 <div style={{
@@ -151,22 +134,22 @@ export default function PremiumPage() {
                 }}>
                     {[
                         {
-                            icon: '🏆', title: 'Create Leagues',
+                            img: '/img/sport-crowd.png', title: 'Create leagues',
                             desc: 'Set up private or public prediction leagues for your friends and community.',
                             color: '#38bdf8',
                         },
                         {
-                            icon: '📊', title: 'Community Insights',
+                            img: '/img/sport-scoreboard.png', title: 'Community insights',
                             desc: 'See what percentage of players predicted each outcome before a match kicks off.',
                             color: '#818cf8',
                         },
                         {
-                            icon: '⚙️', title: 'Manage Matches',
+                            img: '/img/sport-floodlight.png', title: 'Manage matches',
                             desc: 'Add matches, import schedules, and enter final scores to update everyone\'s points.',
                             color: '#f97316',
                         },
                         {
-                            icon: '🔑', title: 'Invite Codes',
+                            img: '/img/cta-celebration.png', title: 'Invite codes',
                             desc: 'Share a private join code with friends — only invited players can enter your league.',
                             color: '#48bb78',
                         },
@@ -176,7 +159,8 @@ export default function PremiumPage() {
                             borderRadius: 'var(--radius-lg)', padding: '1.25rem',
                             borderTop: `3px solid ${f.color}`,
                         }}>
-                            <div style={{ fontSize: '1.75rem', marginBottom: '0.6rem' }}>{f.icon}</div>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={f.img} alt="" className="feature-thumb" style={{ marginBottom: '0.6rem' }} />
                             <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.35rem' }}>{f.title}</div>
                             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{f.desc}</div>
                         </div>
@@ -189,7 +173,7 @@ export default function PremiumPage() {
                     borderRadius: 'var(--radius-md)', padding: '0.9rem 1.1rem',
                     marginBottom: '2rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
                 }}>
-                    <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>ℹ️</span>
+                    
                     <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                         <strong style={{ color: 'var(--text-primary)' }}>Fair play:</strong> Premium membership does not give any scoring advantage.
                         Every player earns points the same way — <strong>+5 pts</strong> exact score · <strong>+3 pts</strong> correct winner &amp; gap · <strong>+2 pts</strong> correct winner · <strong>+0 pts</strong> wrong.
@@ -200,10 +184,10 @@ export default function PremiumPage() {
                 {/* My Leagues section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        🏆 My Leagues <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.9rem' }}>({tournaments.length})</span>
+                        My leagues <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.9rem' }}>({tournaments.length})</span>
                     </h2>
                     <button className="btn btn-primary" onClick={() => setShowCreate(!showCreate)}>
-                        + Create League
+                        Create a league
                     </button>
                 </div>
 
@@ -213,7 +197,7 @@ export default function PremiumPage() {
                         background: 'var(--bg-card)', border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: '1.5rem',
                     }}>
-                        <h3 style={{ fontWeight: 700, marginBottom: '1.25rem', fontSize: '1.05rem' }}>✨ New League</h3>
+                        <h3 style={{ fontWeight: 700, marginBottom: '1.25rem', fontSize: '1.05rem' }}>New league</h3>
                         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div className="form-row-2">
                                 <div>
@@ -240,8 +224,8 @@ export default function PremiumPage() {
                                 <div>
                                     <label htmlFor="league-visibility" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Visibility</label>
                                     <select id="league-visibility" className="input" value={form.leagueType} onChange={e => setForm(f => ({ ...f, leagueType: e.target.value }))}>
-                                        <option value="private">🔒 Private — invite code only</option>
-                                        <option value="open">🌍 Open — anyone can join (no code needed)</option>
+                                        <option value="private">Private — invite code only</option>
+                                        <option value="open">Open — anyone can join (no code needed)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -255,10 +239,10 @@ export default function PremiumPage() {
                                 <textarea id="league-description" className="input" rows={2} placeholder="Short description for your league…"
                                     value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
                             </div>
-                            {createMsg && <p style={{ fontSize: '0.87rem', color: createMsg.startsWith('✅') ? '#48bb78' : '#f56565' }}>{createMsg}</p>}
+                            {createMsg && <p style={{ fontSize: '0.87rem', color: !createMsg.startsWith('Error') ? '#48bb78' : '#f56565' }}>{createMsg}</p>}
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
                                 <button className="btn btn-primary" type="submit" disabled={creating} style={{ flex: 1 }}>
-                                    {creating ? 'Creating…' : '🏆 Create League'}
+                                    {creating ? 'Creating…' : 'Create league'}
                                 </button>
                                 <button className="btn btn-secondary" type="button" onClick={() => setShowCreate(false)}>Cancel</button>
                             </div>
@@ -269,10 +253,11 @@ export default function PremiumPage() {
                 {/* League list */}
                 {tournaments.length === 0 ? (
                     <div className="empty-state">
-                        <div className="empty-state-icon">🏆</div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/img/sport-crowd.png" alt="" className="empty-state-img" />
                         <h3>No leagues yet</h3>
                         <p>Create your first league and invite your friends to compete.</p>
-                        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create League</button>
+                        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>Create a league</button>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -282,31 +267,26 @@ export default function PremiumPage() {
                                 borderRadius: 'var(--radius-lg)', padding: '1.1rem 1.25rem',
                                 display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
                             }}>
-                                {/* Sport icon */}
-                                <div style={{
-                                    width: 44, height: 44, borderRadius: 'var(--radius-md)',
-                                    background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0,
-                                }}>
-                                    {sportIcon(t.sport)}
-                                </div>
+                                {/* Sport image */}
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={sportImage(t.sport)} alt={t.sport} className="feature-thumb" style={{ flexShrink: 0 }} />
 
                                 {/* Info */}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                         <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>{t.name}</span>
                                         <span className={t.league_type === 'open' ? 'league-badge-open' : 'league-badge-private'}>
-                                            {t.league_type === 'open' ? '🌍 Open' : '🔒 Private'}
+                                            {t.league_type === 'open' ? 'Open' : 'Private'}
                                         </span>
                                         {!t.is_active && (
-                                            <span style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', padding: '0.1rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}>🏁 CLOSED</span>
+                                            <span style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', padding: '0.1rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}>CLOSED</span>
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t.sport}</span>
                                         {t.league_type === 'private' && (
                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                🔑 Code: <strong style={{ color: 'var(--color-primary)', fontFamily: 'monospace', letterSpacing: '0.1em' }}>{t.join_code}</strong>
+                                                Code: <strong style={{ color: 'var(--color-primary)', fontFamily: 'monospace', letterSpacing: '0.1em' }}>{t.join_code}</strong>
                                             </span>
                                         )}
                                     </div>
@@ -314,16 +294,16 @@ export default function PremiumPage() {
 
                                 {/* Actions */}
                                 <div className="premium-league-actions" style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap' }}>
-                                    <Link href={`/manage/${t.id}`} className="btn btn-primary btn-sm" aria-label={`Manage ${t.name}`}>⚙️ Manage</Link>
-                                    <Link href={`/predictions/${t.id}`} className="btn btn-secondary btn-sm" aria-label={`Predict in ${t.name}`}>🎯 Predict</Link>
-                                    <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary btn-sm" aria-label={`Rankings for ${t.name}`}>📊 Ranks</Link>
+                                    <Link href={`/manage/${t.id}`} className="btn btn-primary btn-sm" aria-label={`Manage ${t.name}`}>Manage</Link>
+                                    <Link href={`/predictions/${t.id}`} className="btn btn-secondary btn-sm" aria-label={`Predict in ${t.name}`}>Predict</Link>
+                                    <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary btn-sm" aria-label={`Rankings for ${t.name}`}>Ranks</Link>
                                     <button
                                         className="btn btn-secondary btn-sm"
                                         onClick={() => toggleStatus(t.id, t.is_active)}
                                         title={t.is_active ? 'Close league' : 'Reopen league'}
                                         aria-label={t.is_active ? `Close ${t.name}` : `Reopen ${t.name}`}
                                     >
-                                        {t.is_active ? '🔒 Close' : '🔓 Reopen'}
+                                        {t.is_active ? 'Close' : 'Reopen'}
                                     </button>
                                 </div>
                             </div>

@@ -449,7 +449,7 @@ export default function ManagePage() {
                 {/* Header */}
                 <div className="app-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                        <h1 className="app-page-title">⚙️ Manage Matches</h1>
+                        <h1 className="app-page-title">Manage matches</h1>
                         {tournamentName && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{tournamentName}</p>}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>

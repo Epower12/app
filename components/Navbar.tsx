@@ -30,13 +30,13 @@ export default function Navbar() {
     const [mobileOpen, setMobileOpen] = useState(false);
 
     const links = [
-        { href: '/', label: '🏠 Home' },
-        { href: '/tournaments', label: '🏆 Leagues' },
-        { href: '/profile', label: '👤 Profile' },
+        { href: '/', label: 'Home' },
+        { href: '/tournaments', label: 'Leagues' },
+        { href: '/profile', label: 'Profile' },
     ];
 
     if (user?.role === 'premium' || user?.role === 'admin') {
-        links.splice(1, 0, { href: '/premium', label: '⚡ Dashboard' });
+        links.splice(1, 0, { href: '/premium', label: 'Dashboard' });
     }
 
     const roleLabel =
@@ -71,7 +71,7 @@ export default function Navbar() {
                     <div className="app-nav-user">
                         {roleLabel && (
                             <span className={`app-nav-role-badge ${user?.role === 'admin' ? 'badge-admin' : 'badge-premium'}`}>
-                                {user?.role === 'admin' ? '🛡️' : '💎'} {roleLabel}
+                                {roleLabel}
                             </span>
                         )}
                         <NotificationBell />
@@ -119,7 +119,7 @@ export default function Navbar() {
                         {roleLabel && (
                             <span className={`app-nav-role-badge ${user?.role === 'admin' ? 'badge-admin' : 'badge-premium'}`}
                                 style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}>
-                                {user?.role === 'admin' ? '🛡️' : '💎'} {roleLabel}
+                                {roleLabel}
                             </span>
                         )}
                         <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>

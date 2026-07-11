@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
+import SportHeader, { sportImage } from '../components/SportHeader';
 
 interface Tournament {
     id: string;
@@ -17,13 +18,6 @@ interface Tournament {
     max_participants?: number;
     is_active: number;
 }
-
-const SPORT_ICONS: Record<string, string> = {
-    Football: '⚽', 'Ice Hockey': '🏒', Tennis: '🎾', Basketball: '🏀',
-    Volleyball: '🏐', Baseball: '⚾', 'Formula 1': '🏎️', MotoGP: '🏍️',
-    'League of Legends': '🎮', 'Counter-Strike': '🔫', 'Dota 2': '🐉', Valorant: '🔮',
-};
-const sportIcon = (s: string) => SPORT_ICONS[s] ?? '🏅';
 
 export default function TournamentsPage() {
     const { data: session, status } = useSession();
@@ -104,27 +98,24 @@ export default function TournamentsPage() {
             <Navbar />
             <div className="container">
                 {/* Header */}
-                <div className="app-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <h1 className="app-page-title">🏆 Leagues</h1>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                            Compete in tournaments, make predictions, climb the ranks
-                        </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <SportHeader
+                    title="Leagues"
+                    subtitle="Predict scores, earn points for accuracy, climb the table."
+                    image="/img/hero-arena.png"
+                    actions={
                         <button className="btn btn-primary" onClick={() => setShowJoinModal(true)}>
-                            + Join League
+                            Join a league
                         </button>
-                    </div>
-                </div>
+                    }
+                />
 
                 {/* Tab bar */}
                 <div className="tab-bar">
                     <button className={`tab-btn ${tab === 'my' ? 'tab-btn-active' : ''}`} onClick={() => setTab('my')}>
-                        🎯 My Leagues <span style={{ opacity: 0.7, marginLeft: '0.3rem' }}>({myTournaments.length})</span>
+                        My leagues <span style={{ opacity: 0.7, marginLeft: '0.3rem' }}>({myTournaments.length})</span>
                     </button>
                     <button className={`tab-btn ${tab === 'open' ? 'tab-btn-active' : ''}`} onClick={() => setTab('open')}>
-                        🌍 Open Leagues <span style={{ opacity: 0.7, marginLeft: '0.3rem' }}>({openTournaments.length})</span>
+                        Open leagues <span style={{ opacity: 0.7, marginLeft: '0.3rem' }}>({openTournaments.length})</span>
                     </button>
                 </div>
 
@@ -133,10 +124,11 @@ export default function TournamentsPage() {
                     <>
                         {myTournaments.length === 0 ? (
                             <div className="empty-state">
-                                <div className="empty-state-icon">🏆</div>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/img/sport-crowd.png" alt="" className="empty-state-img" />
                                 <h3>No leagues yet</h3>
                                 <p>Join an open league or ask for a join code to get started.</p>
-                                <button className="btn btn-primary" onClick={() => setShowJoinModal(true)}>Join a League</button>
+                                <button className="btn btn-primary" onClick={() => setShowJoinModal(true)}>Join a league</button>
                             </div>
                         ) : (
                             <div className="grid grid-2">
@@ -153,7 +145,8 @@ export default function TournamentsPage() {
                     <>
                         {openTournaments.length === 0 ? (
                             <div className="empty-state">
-                                <div className="empty-state-icon">🌍</div>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/img/sport-floodlight.png" alt="" className="empty-state-img" />
                                 <h3>No open leagues available</h3>
                                 <p>No public tournaments have been created yet. Check back soon!</p>
                             </div>
@@ -238,8 +231,29 @@ function ShareButton({ joinCode, leagueName }: { joinCode: string; leagueName: s
             aria-label={`Share invite link for ${leagueName}`}
             style={{ minWidth: 80 }}
         >
-            {copied ? '✅ Copied!' : '🔗 Share'}
+            {copied ? 'Copied!' : 'Share'}
         </button>
+    );
+}
+
+/* ---- Card banner: sport image + status badges ---- */
+function CardBanner({ tournament: t }: { tournament: Tournament }) {
+    return (
+        <div className="tournament-card-banner">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={sportImage(t.sport)} alt={t.sport} />
+            <div className="tournament-card-banner-badges">
+                {!t.is_active && (
+                    <span style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid var(--border-color)' }}>
+                        Closed
+                    </span>
+                )}
+                <span className={t.league_type === 'open' ? 'league-badge-open' : 'league-badge-private'}>
+                    {t.league_type === 'open' ? 'Open' : 'Private'}
+                </span>
+                <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>{t.sport}</span>
+            </div>
+        </div>
     );
 }
 
@@ -247,33 +261,20 @@ function ShareButton({ joinCode, leagueName }: { joinCode: string; leagueName: s
 function TournamentCard({ tournament: t }: { tournament: Tournament }) {
     return (
         <div className="tournament-card">
-            <div className="tournament-card-header">
-                <div className="tournament-card-sport-icon">{sportIcon(t.sport)}</div>
-                <div className="tournament-card-badges">
-                    {!t.is_active && (
-                        <span style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center' }}>
-                            🏁 CLOSED
-                        </span>
-                    )}
-                    <span className={t.league_type === 'open' ? 'league-badge-open' : 'league-badge-private'}>
-                        {t.league_type === 'open' ? '🌍 Open' : '🔒 Private'}
-                    </span>
-                    <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>{t.sport}</span>
-                </div>
-            </div>
+            <CardBanner tournament={t} />
             <div className="tournament-card-name">{t.name}</div>
             {t.description && (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t.description}</p>
             )}
             <div className="tournament-card-meta">
-                <span>📅 Joined {new Date(t.created_at * 1000).toLocaleDateString()}</span>
+                <span>Joined {new Date(t.created_at * 1000).toLocaleDateString()}</span>
                 {t.league_type === 'private' && (
-                    <span>🔑 Code: <strong style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>{t.join_code}</strong></span>
+                    <span>Code: <strong style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>{t.join_code}</strong></span>
                 )}
             </div>
             <div className="tournament-card-actions">
-                <Link href={`/predictions/${t.id}`} className="btn btn-primary">🎯 Predict</Link>
-                <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary">📊 Rankings</Link>
+                <Link href={`/predictions/${t.id}`} className="btn btn-primary">Predict</Link>
+                <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary">Rankings</Link>
                 <ShareButton joinCode={t.join_code} leagueName={t.name} />
             </div>
         </div>
@@ -298,36 +299,25 @@ function OpenLeagueCard({ tournament: t, joined, onJoined }: { tournament: Tourn
 
     return (
         <div className="tournament-card" style={{ opacity: joined ? 0.8 : 1 }}>
-            <div className="tournament-card-header">
-                <div className="tournament-card-sport-icon">{sportIcon(t.sport)}</div>
-                <div className="tournament-card-badges">
-                    {!t.is_active && (
-                        <span style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center' }}>
-                            🏁 CLOSED
-                        </span>
-                    )}
-                    <span className="league-badge-open">🌍 Open</span>
-                    <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>{t.sport}</span>
-                </div>
-            </div>
+            <CardBanner tournament={t} />
             <div className="tournament-card-name">{t.name}</div>
             {t.description && (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t.description}</p>
             )}
             <div className="tournament-card-meta">
-                <span>📅 {new Date(t.created_at * 1000).toLocaleDateString()}</span>
+                <span>Created {new Date(t.created_at * 1000).toLocaleDateString()}</span>
             </div>
             <div className="tournament-card-actions">
                 {joined ? (
                     <>
-                        <Link href={`/predictions/${t.id}`} className="btn btn-primary">🎯 Predict</Link>
-                        <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary">📊 Rankings</Link>
+                        <Link href={`/predictions/${t.id}`} className="btn btn-primary">Predict</Link>
+                        <Link href={`/leaderboard/${t.id}`} className="btn btn-secondary">Rankings</Link>
                         <ShareButton joinCode={t.join_code} leagueName={t.name} />
                     </>
                 ) : (
                     <>
                         <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleQuickJoin} disabled={joining}>
-                            {joining ? 'Joining…' : '+ Join This League'}
+                            {joining ? 'Joining…' : 'Join this league'}
                         </button>
                         <ShareButton joinCode={t.join_code} leagueName={t.name} />
                     </>

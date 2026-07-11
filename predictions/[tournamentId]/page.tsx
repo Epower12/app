@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
+import SportHeader, { sportImage } from '../../components/SportHeader';
 import ScoreStepper from '../../components/ScoreStepper';
 import SeriesPredictor from '../../components/SeriesPredictor';
 import RacePredictor from '../../components/RacePredictor';
@@ -24,20 +25,11 @@ interface ScorePrediction { id: string; match_id: string; team_a_score: number; 
 interface RacePrediction { id: string; match_id: string; p1_driver: string; p2_driver: string; p3_driver: string; }
 interface MatchStats { total: number; homeWin: number; draw: number; awayWin: number; teamA: string; teamB: string; topPredictions: { score: string; count: number; pct: number }[]; }
 
-const sportIcon = (s: string) => {
-    const m: Record<string, string> = {
-        Football: '⚽', 'Ice Hockey': '🏒', Tennis: '🎾', Basketball: '🏀',
-        'Formula 1': '🏎️', MotoGP: '🏍️', 'Counter-Strike': '🔫',
-        'League of Legends': '🎮', 'Dota 2': '🐉', Valorant: '🔮',
-    };
-    return m[s] ?? '🏅';
-};
-
 const SESSION_BADGE: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    qualifying:       { label: '⚡ QUALI',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
-    sprint_qualifying:{ label: '⚡ SQ',      color: '#818cf8', bg: 'rgba(129,140,248,0.12)', border: 'rgba(129,140,248,0.35)' },
-    sprint:           { label: '🔰 SPRINT',  color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
-    race:             { label: '🏁 RACE',    color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.35)' },
+    qualifying:       { label: 'QUALI',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
+    sprint_qualifying:{ label: 'SQ',      color: '#818cf8', bg: 'rgba(129,140,248,0.12)', border: 'rgba(129,140,248,0.35)' },
+    sprint:           { label: 'SPRINT',  color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
+    race:             { label: 'RACE',    color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.35)' },
 };
 
 const avatarLetters = (name: string) => name.slice(0, 2).toUpperCase();
@@ -157,23 +149,22 @@ export default function PredictionsPage() {
             <Navbar />
             <div className="container">
                 {/* Header */}
-                <div className="app-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <div>
-                        <h1 className="app-page-title">
-                            {tournamentSport ? sportIcon(tournamentSport) : '🎯'} Predictions
-                        </h1>
-                        {tournamentName && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{tournamentName}</p>}
-                    </div>
-                    <div className="page-header-actions">
-                        {isCreator && <Link href={`/manage/${tournamentId}`} className="btn btn-secondary">⚙️ Manage</Link>}
-                        <Link href={`/leaderboard/${tournamentId}`} className="btn btn-secondary">📊 Rankings</Link>
-                        <Link href="/tournaments" className="btn btn-secondary">← Leagues</Link>
-                    </div>
-                </div>
+                <SportHeader
+                    title="Predictions"
+                    subtitle={tournamentName || undefined}
+                    image={sportImage(tournamentSport)}
+                    actions={
+                        <>
+                            {isCreator && <Link href={`/manage/${tournamentId}`} className="btn btn-secondary">Manage</Link>}
+                            <Link href={`/leaderboard/${tournamentId}`} className="btn btn-secondary">Rankings</Link>
+                            <Link href="/tournaments" className="btn btn-secondary">All leagues</Link>
+                        </>
+                    }
+                />
 
                 {/* Scoring rules */}
                 <div className="scoring-rules-row">
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.03em' }}>🏅 SCORING</span>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.03em' }}>SCORING</span>
                     {hasRace ? (
                         <>
                             <span><strong style={{ color: '#fbbf24' }}>+5 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Exact P1</span></span>
@@ -208,7 +199,8 @@ export default function PredictionsPage() {
 
                 {matches.length === 0 && (
                     <div className="empty-state">
-                        <div className="empty-state-icon">📋</div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/img/sport-floodlight.png" alt="" className="empty-state-img" />
                         <h3>No matches yet</h3>
                         <p>The league organiser hasn't added any matches yet. Check back soon!</p>
                     </div>
@@ -389,7 +381,7 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
                         ))}
                     </div>
                 ) : !locked && (
-                    <span className="match-vs-badge">🏎️</span>
+                    <span className="match-vs-badge">VS</span>
                 )}
             </div>
 
@@ -419,7 +411,7 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                             <button className="btn btn-success btn-sm" onClick={handleSave}
                                 disabled={saving || !podium.p1 || !podium.p2 || !podium.p3}>
-                                {saving ? '…' : '✓ Save Podium'}
+                                {saving ? '…' : 'Save podium'}
                             </button>
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
                         </div>
@@ -439,7 +431,7 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRace, locked, s
                         {!locked && <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>Edit</button>}
                     </div>
                 ) : !locked ? (
-                    <button className="btn btn-primary" onClick={() => setEditing(true)}>🏎️ Pick Podium</button>
+                    <button className="btn btn-primary" onClick={() => setEditing(true)}>Pick podium</button>
                 ) : (
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No prediction made</span>
                 )}
@@ -497,14 +489,14 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
         if (!showResult || match.team_a_score === null || !scorePrediction) return null;
         const predA = scorePrediction.team_a_score, predB = scorePrediction.team_b_score;
         const actualA = match.team_a_score, actualB = match.team_b_score!;
-        if (predA === actualA && predB === actualB) return { pts: 5, label: '🎯 Exact!', color: '#4facfe' };
+        if (predA === actualA && predB === actualB) return { pts: 5, label: 'Exact!', color: '#4facfe' };
         const predW = predA > predB ? 'A' : predA < predB ? 'B' : 'draw';
         const actualW = actualA > actualB ? 'A' : actualA < actualB ? 'B' : 'draw';
         const correctWinner = predW === actualW;
         const correctGap = Math.abs(predA - predB) === Math.abs(actualA - actualB);
-        if (correctWinner && correctGap) return { pts: 3, label: '📐 Winner + margin', color: '#48bb78' };
-        if (correctWinner) return { pts: 2, label: '✓ Winner', color: '#667eea' };
-        return { pts: 0, label: '✗ Wrong', color: 'var(--text-muted)' };
+        if (correctWinner && correctGap) return { pts: 3, label: 'Winner + margin', color: '#48bb78' };
+        if (correctWinner) return { pts: 2, label: 'Winner', color: '#667eea' };
+        return { pts: 0, label: 'Wrong', color: 'var(--text-muted)' };
     };
     const result = resultPoints();
 
@@ -553,7 +545,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                 <div style={{ padding: '0 1rem 0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
                     <button style={{ fontSize: '0.75rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
                         onClick={() => onLoadStats?.(match.id)}>
-                        📊 {statsOpen ? 'Hide' : 'Community predictions'}
+                        {statsOpen ? 'Hide' : 'Community predictions'}
                     </button>
                 </div>
             )}
@@ -586,7 +578,6 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
             {/* Countdown */}
             {countdownUrgency && countdownUrgency !== 'normal' && (
                 <div style={{ margin: '0 1rem 0.6rem', padding: '0.45rem 0.85rem', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', ...urgencyStyle[countdownUrgency] }}>
-                    {countdownUrgency === 'critical' ? '🚨' : countdownUrgency === 'warning' ? '⚠️' : '⏰'}
                     {countdownUrgency === 'critical' ? `Closes in ${minutes}m — predict now!` : countdownUrgency === 'warning' ? `${hours}h ${minutes}m left` : `Closes in ${hours}h ${minutes}m`}
                 </div>
             )}
@@ -597,10 +588,10 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                     <span className="match-time">{formatDT(match.scheduled_time)}</span>
                     {countdownUrgency === 'normal' && (
                         <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: '999px', ...urgencyStyle.normal }}>
-                            ⏱ {hours}h {minutes}m
+                            {hours}h {minutes}m
                         </span>
                     )}
-                    {locked && !showResult && <span style={{ fontSize: '0.8rem', color: '#f5576c', fontWeight: 600 }}>🔒 Locked</span>}
+                    {locked && !showResult && <span style={{ fontSize: '0.8rem', color: '#f5576c', fontWeight: 600 }}>Locked</span>}
                 </div>
 
                 {editing && !locked ? (
@@ -624,7 +615,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                             <button className="btn btn-success btn-sm" onClick={handleSave}
                                 disabled={saving || playoffTieBlocked || (isSeries && scores.a === 0 && scores.b === 0)}
                                 title={playoffTieBlocked ? 'Tied scores not allowed in knockout matches' : undefined}>
-                                {saving ? '…' : '✓ Save'}
+                                {saving ? '…' : 'Save'}
                             </button>
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
                         </div>
@@ -639,7 +630,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                     </div>
                 ) : !locked ? (
                     <button className="btn btn-primary" onClick={() => setEditing(true)} style={{ minWidth: 130 }}>
-                        {isSeries ? '🎮 Pick Result' : '🎯 Make Prediction'}
+                        {isSeries ? 'Pick result' : 'Make prediction'}
                     </button>
                 ) : (
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No prediction made</span>

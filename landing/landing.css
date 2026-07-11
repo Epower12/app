@@ -1,0 +1,472 @@
+/* ============================================================
+   LANDING — ported from the landing-3d prototype (user-approved).
+   All classes are ld-prefixed; .hero-heading / .btn-pill /
+   .btn-pill-ghost come from globals.css (shared design language).
+   Palette: ink #050a14 · frost #f1f5f9 · steel #94a3b8
+   ============================================================ */
+
+.ld-page {
+  background: #050a14;
+  overflow-x: clip;
+}
+
+/* ---------- Hero ---------- */
+.ld-hero {
+  display: flex;
+  height: 100vh;
+  height: 100svh;
+  flex-direction: column;
+  overflow-x: clip;
+}
+
+.ld-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.5rem 0;
+}
+.ld-nav a {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #f1f5f9;
+  transition: opacity 0.2s ease;
+}
+.ld-nav a:hover { opacity: 0.7; }
+
+.ld-hero-headline-wrap {
+  overflow: hidden;
+  padding: 0 0.25rem;
+}
+.ld-hero-headline {
+  width: 100%;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 10.2vw;
+  line-height: 1;
+  padding-top: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.ld-hero-video-zone {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+}
+.ld-hero-video-fill {
+  display: flex;
+  height: 100%;
+  max-height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.ld-hero-video-card {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: 52vh;
+  width: min(88vw, 860px);
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 60px rgba(56, 189, 248, 0.22), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.ld-hero-video-card video {
+  display: block;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.ld-hero-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1.5rem 1.75rem;
+}
+.ld-hero-tagline {
+  max-width: 180px;
+  font-weight: 300;
+  text-transform: uppercase;
+  line-height: 1.4;
+  letter-spacing: 0.025em;
+  color: #f1f5f9;
+  font-size: clamp(0.75rem, 1.2vw, 1.15rem);
+}
+
+/* ---------- Marquee ---------- */
+.ld-marquee {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: hidden;
+  background: #050a14;
+  padding-bottom: 2.5rem;
+  padding-top: 6rem;
+}
+.ld-marquee-row {
+  display: flex;
+  gap: 0.75rem;
+  will-change: transform;
+}
+.ld-marquee-row img {
+  height: 270px;
+  width: 420px;
+  flex-shrink: 0;
+  border-radius: 1rem;
+  object-fit: cover;
+}
+
+/* ---------- The game ---------- */
+.ld-game {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 6rem 1.25rem;
+}
+.ld-game-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+.ld-game-bg img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  opacity: 0.16;
+}
+.ld-game-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(5, 10, 20, 0.55) 0%, rgba(5, 10, 20, 0.92) 75%, #050a14 100%);
+}
+.ld-game-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+}
+.ld-h2 {
+  text-align: center;
+  line-height: 1;
+  font-size: clamp(3rem, 12vw, 160px);
+}
+.ld-game-copy {
+  max-width: 600px;
+  text-align: center;
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  font-weight: 500;
+  line-height: 1.65;
+  color: #f1f5f9;
+}
+.ld-game-cta { margin-top: 1rem; }
+
+/* ---------- Scoring (white section) ---------- */
+.ld-scoring {
+  border-radius: 40px 40px 0 0;
+  background: #ffffff;
+  padding: 5rem 1.25rem;
+}
+.ld-scoring-title {
+  font-family: 'Russo One', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: #050a14;
+  margin-bottom: 4rem;
+  text-align: center;
+  line-height: 1;
+  font-size: clamp(3rem, 12vw, 160px);
+}
+.ld-scoring-list {
+  margin: 0 auto;
+  max-width: 64rem;
+}
+.ld-tier-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+.ld-tier-row + .ld-tier-row-border { border-top: 1px solid rgba(5, 10, 20, 0.15); }
+.ld-tier-points {
+  width: 1.9em;
+  flex-shrink: 0;
+  font-family: 'Russo One', sans-serif;
+  line-height: 1;
+  color: #050a14;
+  font-size: clamp(3rem, 10vw, 140px);
+}
+.ld-tier-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ld-tier-name {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #050a14;
+  font-size: clamp(1rem, 2.2vw, 2.1rem);
+}
+.ld-tier-desc {
+  max-width: 42rem;
+  font-weight: 300;
+  line-height: 1.65;
+  color: #050a14;
+  opacity: 0.6;
+  font-size: clamp(0.85rem, 1.6vw, 1.25rem);
+}
+.ld-scoring-note {
+  padding-top: 2.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #050a14;
+  opacity: 0.5;
+}
+
+.ld-premium-card {
+  margin-top: 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+  border-radius: 32px;
+  background: #050a14;
+  padding: 2rem;
+}
+.ld-premium-copy { max-width: 36rem; }
+.ld-premium-title {
+  margin-bottom: 0.75rem;
+  font-family: 'Russo One', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #f1f5f9;
+  font-size: clamp(1.4rem, 2.6vw, 2.2rem);
+}
+.ld-premium-desc {
+  font-weight: 300;
+  line-height: 1.65;
+  color: #94a3b8;
+  font-size: clamp(0.9rem, 1.4vw, 1.1rem);
+}
+.ld-premium-pricing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.ld-premium-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.ld-premium-price {
+  font-family: 'Russo One', sans-serif;
+  color: #f1f5f9;
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+}
+.ld-premium-price span { font-size: 1rem; color: #94a3b8; font-family: 'Inter', sans-serif; }
+.ld-premium-dot { color: #94a3b8; }
+.ld-premium-terms {
+  font-size: 0.75rem;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+/* ---------- Matchday ---------- */
+.ld-matchday {
+  position: relative;
+  z-index: 10;
+  margin-top: -2.5rem;
+  border-radius: 40px 40px 0 0;
+  background: #050a14;
+  padding: 5rem 1rem 6rem;
+}
+.ld-matchday-title {
+  margin-bottom: 2.5rem;
+  text-align: center;
+  line-height: 1;
+  font-size: clamp(3rem, 12vw, 160px);
+}
+.ld-match-sticky {
+  position: sticky;
+  height: 85vh;
+}
+.ld-match-card {
+  border-radius: 40px;
+  border: 2px solid rgba(241, 245, 249, 0.7);
+  background: #050a14;
+  padding: 1rem;
+}
+.ld-match-head {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 0.5rem;
+}
+.ld-match-id {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.ld-match-number {
+  line-height: 1;
+  font-size: clamp(2.6rem, 7vw, 96px);
+}
+.ld-match-titles {
+  display: flex;
+  flex-direction: column;
+}
+.ld-match-name {
+  font-family: 'Russo One', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #f1f5f9;
+  font-size: clamp(1.2rem, 3vw, 2.4rem);
+}
+.ld-match-format {
+  font-size: 0.75rem;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+.ld-match-video {
+  aspect-ratio: 16 / 9;
+  max-height: 56vh;
+  width: 100%;
+  border-radius: 28px;
+  object-fit: cover;
+}
+
+/* ---------- Footer ---------- */
+.ld-footer {
+  position: relative;
+  overflow: hidden;
+  padding: 7rem 1.25rem 2.5rem;
+}
+.ld-footer-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  opacity: 0.25;
+}
+.ld-footer-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+}
+.ld-footer-title {
+  text-align: center;
+  line-height: 1;
+  font-size: clamp(2.6rem, 10vw, 140px);
+}
+.ld-footer-legal {
+  margin-top: 4rem;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid rgba(241, 245, 249, 0.1);
+  padding-top: 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+.ld-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+}
+.ld-footer-links a { transition: opacity 0.2s ease; }
+.ld-footer-links a:hover { opacity: 0.7; }
+/* CookieSettingsLink renders a <button>; match the link treatment */
+.ld-footer-links button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.ld-footer-links button:hover { opacity: 0.7; }
+
+/* ---------- Breakpoints ---------- */
+@media (min-width: 640px) {
+  .ld-hero-bottom { padding-bottom: 2rem; }
+  .ld-hero-tagline { max-width: 260px; }
+  .ld-marquee { padding-top: 8rem; }
+  .ld-game { padding-left: 2rem; padding-right: 2rem; }
+  .ld-game-content { gap: 3rem; }
+  .ld-scoring { border-radius: 50px 50px 0 0; padding: 6rem 2rem; }
+  .ld-scoring-title { margin-bottom: 5rem; }
+  .ld-tier-row { gap: 2.5rem; padding: 2.5rem 0; }
+  .ld-scoring-note { font-size: 1rem; }
+  .ld-premium-card { margin-top: 5rem; }
+  .ld-matchday { margin-top: -3rem; border-radius: 50px 50px 0 0; padding-left: 1.5rem; padding-right: 1.5rem; }
+  .ld-matchday-title { margin-bottom: 3.5rem; }
+  .ld-match-card { border-radius: 50px; padding: 1.5rem; }
+  .ld-match-head { margin-bottom: 1.5rem; padding: 0 1rem; }
+  .ld-match-id { gap: 2rem; }
+  .ld-match-format { font-size: 0.875rem; }
+  .ld-match-video { border-radius: 36px; }
+  .ld-footer { padding-left: 2rem; padding-right: 2rem; }
+  .ld-footer-legal { flex-direction: row; }
+}
+
+@media (min-width: 768px) {
+  .ld-nav { padding: 2rem 2.5rem 0; }
+  .ld-nav a { font-size: 1.125rem; }
+  .ld-hero-video-zone { padding-top: 1rem; padding-bottom: 1rem; }
+  .ld-hero-video-card { border-radius: 1.5rem; }
+  .ld-hero-bottom { padding: 0 2.5rem 2.5rem; }
+  .ld-hero-tagline { max-width: 320px; }
+  .ld-marquee { padding-top: 10rem; }
+  .ld-game { padding-left: 2.5rem; padding-right: 2.5rem; }
+  .ld-game-content { gap: 3.5rem; }
+  .ld-scoring { border-radius: 60px 60px 0 0; padding: 8rem 2.5rem; }
+  .ld-scoring-title { margin-bottom: 7rem; }
+  .ld-tier-row { gap: 3.5rem; padding: 3rem 0; }
+  .ld-premium-card { flex-direction: row; align-items: center; padding: 3rem; }
+  .ld-premium-pricing { align-items: flex-end; }
+  .ld-matchday { margin-top: -3.5rem; border-radius: 60px 60px 0 0; padding: 7rem 2.5rem 6rem; }
+  .ld-matchday-title { margin-bottom: 5rem; }
+  .ld-match-card { border-radius: 60px; padding: 2rem; }
+  .ld-match-video { border-radius: 44px; }
+  .ld-footer { padding: 9rem 2.5rem 2.5rem; }
+  .ld-footer-legal { margin-top: 6rem; }
+}
+
+@media (min-width: 1024px) {
+  .ld-nav a { font-size: 1.15rem; }
+}
