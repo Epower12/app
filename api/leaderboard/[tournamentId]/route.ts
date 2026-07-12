@@ -6,6 +6,7 @@ import { calculatePoints, calculateRaceWeekendPoints, raceSessionMultiplier } fr
 import { ensureMigrations } from '@/lib/migrations';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import type { LeaderboardEntry } from '@/lib/types';
+import { parseRaceBonusConfig } from '@/lib/types';
 
 export async function GET(
     request: Request,
@@ -47,6 +48,9 @@ export async function GET(
         const { rows: matches } = await db.query(`
             SELECT * FROM matches WHERE tournament_id = $1 ORDER BY scheduled_time ASC
         `, [tournamentId]);
+
+        const { rows: tournamentConfigRows } = await db.query('SELECT race_bonus_config FROM tournaments WHERE id = $1', [tournamentId]);
+        const raceBonusConfig = parseRaceBonusConfig(tournamentConfigRows[0]?.race_bonus_config);
 
         // Pre-fetch all score/series predictions
         const { rows: allPredictions } = await db.query(`
@@ -99,7 +103,7 @@ export async function GET(
                                 positionsLostResult: match.positions_lost_result, winningMarginResult: match.winning_margin_result,
                                 retirementsResult: match.retirements_result,
                             },
-                            match.race_session, multiplier
+                            match.race_session, multiplier, raceBonusConfig
                         );
                         points = result.total;
                         breakdown = result.breakdown;

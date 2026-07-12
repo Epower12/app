@@ -4,6 +4,7 @@ import db from '@/lib/db';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { ensureMigrations } from '@/lib/migrations';
 import { calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
+import { parseRaceBonusConfig } from '@/lib/types';
 
 // PATCH - Update match (tournament creator only)
 export async function PATCH(
@@ -96,6 +97,8 @@ export async function PATCH(
                     `, [matchId, updated.tournament_id]);
 
                     const multiplier = raceSessionMultiplier(updated.race_session, !!updated.is_season_finale);
+                    const { rows: tRows } = await db.query('SELECT race_bonus_config FROM tournaments WHERE id = $1', [updated.tournament_id]);
+                    const raceBonusConfig = parseRaceBonusConfig(tRows[0]?.race_bonus_config);
 
                     for (const p of raceParticipants) {
                         if (!p.picks || !updated.top10_result) continue;
@@ -113,7 +116,7 @@ export async function PATCH(
                                 positionsLostResult: updated.positions_lost_result, winningMarginResult: updated.winning_margin_result,
                                 retirementsResult: updated.retirements_result,
                             },
-                            updated.race_session, multiplier
+                            updated.race_session, multiplier, raceBonusConfig
                         );
                         const sessionLabel = updated.race_session ? ` (${updated.race_session})` : '';
                         const breakdownStr = breakdown.map(b => `${b.label} +${b.points}`).join(', ') || 'no points';

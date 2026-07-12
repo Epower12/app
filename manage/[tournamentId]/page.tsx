@@ -7,8 +7,21 @@ import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import ScoreStepper from '../../components/ScoreStepper';
 import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
-import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
-import { defaultMatchType, defaultSeriesFormat, SUPPORTED_SPORTS } from '@/lib/types';
+import type { MatchType, SeriesFormat, RaceSession, RaceBonusConfig, RaceBonusQuestionKey } from '@/lib/types';
+import { defaultMatchType, defaultSeriesFormat, SUPPORTED_SPORTS, defaultRaceBonusConfig, parseRaceBonusConfig } from '@/lib/types';
+
+const BONUS_QUESTION_LABELS: { key: RaceBonusQuestionKey; label: string }[] = [
+    { key: 'winner', label: 'Race winner (+3)' },
+    { key: 'podium', label: 'Full podium (+5 / +3)' },
+    { key: 'pole', label: 'Pole position (+3)' },
+    { key: 'fastestLap', label: 'Fastest lap (+3)' },
+    { key: 'firstRetirement', label: 'First retirement (+2)' },
+    { key: 'safetyCar', label: 'Safety car (+2)' },
+    { key: 'positionsGained', label: 'Most positions gained (+3)' },
+    { key: 'positionsLost', label: 'Biggest position loss (+3)' },
+    { key: 'winningMargin', label: 'Winning margin (+2)' },
+    { key: 'retirements', label: 'Retirements count (+2)' },
+];
 
 interface Match {
     id: string; team_a: string; team_b: string; scheduled_time: number;
@@ -111,6 +124,10 @@ export default function ManagePage() {
     const [raceResultFinale, setRaceResultFinale] = useState(false);
     const [raceResultLoading, setRaceResultLoading] = useState(false);
 
+    // Per-league race bonus question config (which bonus questions count toward scoring)
+    const [raceBonusConfig, setRaceBonusConfig] = useState<RaceBonusConfig>(defaultRaceBonusConfig());
+    const [raceBonusSaving, setRaceBonusSaving] = useState(false);
+
     // Manual form state
     const [manualForm, setManualForm] = useState({
         teamA: '', teamB: '', scheduledTime: '', sport: 'Ice Hockey', isPlayoff: false,
@@ -173,6 +190,7 @@ export default function ManagePage() {
             setTournamentName(tData?.name ?? '');
             const sport = tData?.sport ?? '';
             setTournamentSport(sport);
+            setRaceBonusConfig(parseRaceBonusConfig(tData?.race_bonus_config));
             setIsCreator(tData?.created_by === user?.id);
             // Pre-fetch drivers if this is a race-type tournament
             if (sport === 'Formula 1' || sport === 'MotoGP') {
@@ -260,6 +278,18 @@ export default function ManagePage() {
         });
         if (res.ok) { setEditingRaceResult(null); fetchData(); }
         setRaceResultLoading(false);
+    };
+
+    const toggleBonusQuestion = async (key: RaceBonusQuestionKey) => {
+        const next = { ...raceBonusConfig, [key]: !raceBonusConfig[key] };
+        setRaceBonusConfig(next);
+        setRaceBonusSaving(true);
+        await fetch(`/api/tournaments/${tournamentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ race_bonus_config: next }),
+        });
+        setRaceBonusSaving(false);
     };
 
     const handleManualSubmit = async (e: React.FormEvent) => {
@@ -688,6 +718,7 @@ export default function ManagePage() {
                                                     value={raceResultForm}
                                                     onChange={setRaceResultForm}
                                                     mode="result"
+                                                    enabledQuestions={raceBonusConfig}
                                                 />
 
                                                 {m.race_session === 'race' && (
@@ -954,6 +985,22 @@ export default function ManagePage() {
                 {/* --- DRIVER ROSTER (F1/MotoGP) --- */}
                 {tab === 'drivers' && (
                     <div className="owner-section" style={{ maxWidth: 600 }}>
+                        <div className="owner-section-title">Bonus questions</div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                            Choose which bonus questions count toward scoring in this league. The Top 10 order is always scored.
+                            {raceBonusSaving && <span style={{ color: 'var(--color-primary)', marginLeft: '0.5rem' }}>Saving…</span>}
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.5rem', marginBottom: '2rem' }}>
+                            {BONUS_QUESTION_LABELS.map(({ key, label }) => (
+                                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                    <input type="checkbox" checked={raceBonusConfig[key]}
+                                        onChange={() => toggleBonusQuestion(key)}
+                                        style={{ width: 16, height: 16, accentColor: '#38bdf8' }} />
+                                    <span style={{ color: raceBonusConfig[key] ? 'var(--text-primary)' : 'var(--text-muted)' }}>{label}</span>
+                                </label>
+                            ))}
+                        </div>
+
                         <div className="owner-section-title">🏎️ Driver Roster</div>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.25rem' }}>
                             Add all drivers competing in this tournament. These will appear in the podium prediction dropdowns.

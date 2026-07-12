@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { RaceSession } from '@/lib/types';
+import type { RaceSession, RaceBonusConfig } from '@/lib/types';
+import { defaultRaceBonusConfig } from '@/lib/types';
 
 export interface RaceWeekendFormState {
     picks: string[];
@@ -30,6 +31,7 @@ interface Props {
     onChange: (next: RaceWeekendFormState) => void;
     mode: 'predict' | 'result';
     disabled?: boolean;
+    enabledQuestions?: RaceBonusConfig;
 }
 
 const SESSION_LABELS: Record<string, string> = {
@@ -72,10 +74,11 @@ const RETIREMENTS_OPTIONS: { value: '0' | '1-2' | '3+'; label: string }[] = [
     { value: '3+', label: '3+' },
 ];
 
-export default function RaceWeekendEditor({ tournamentId, raceSession, value, onChange, mode, disabled }: Props) {
+export default function RaceWeekendEditor({ tournamentId, raceSession, value, onChange, mode, disabled, enabledQuestions }: Props) {
     const [drivers, setDrivers] = useState<Driver[]>([]);
     const [loading, setLoading] = useState(true);
     const [showMore, setShowMore] = useState(false);
+    const q = enabledQuestions ?? defaultRaceBonusConfig();
 
     useEffect(() => {
         fetch(`/api/race-drivers?tournamentId=${tournamentId}`)
@@ -190,70 +193,92 @@ export default function RaceWeekendEditor({ tournamentId, raceSession, value, on
                 </div>
             )}
 
-            {/* Bonus questions — main race session only */}
-            {showBonus && (
+            {/* Bonus questions — main race session only, gated by the league's enabled-questions config */}
+            {showBonus && (q.pole || q.fastestLap || q.firstRetirement || q.safetyCar || q.positionsGained || q.positionsLost || q.winningMargin || q.retirements) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '0.25rem', borderTop: '1px solid var(--border-color)' }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
                         Bonus predictions
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.6rem' }}>
-                        <DriverPicker label="Pole position (+3)" drivers={drivers} value={value.pole} disabled={disabled}
-                            onChange={v => onChange({ ...value, pole: v })} />
-                        <DriverPicker label="Fastest lap (+3)" drivers={drivers} value={value.fastestLap} disabled={disabled}
-                            onChange={v => onChange({ ...value, fastestLap: v })} />
-                        <DriverPicker label="First retirement (+2)" drivers={drivers} value={value.firstRetirement} disabled={disabled}
-                            onChange={v => onChange({ ...value, firstRetirement: v })} />
-                        <div>
-                            <label style={fieldLabelStyle}>Safety car? (+2)</label>
-                            <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                {(['yes', 'no'] as const).map(opt => (
-                                    <button key={opt} type="button" disabled={disabled}
-                                        onClick={() => onChange({ ...value, safetyCar: value.safetyCar === opt ? '' : opt })}
-                                        style={pillStyle(value.safetyCar === opt)}>
-                                        {opt === 'yes' ? 'Yes' : 'No'}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="button" onClick={() => setShowMore(s => !s)}
-                        style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
-                        {showMore ? 'Hide extra bonus predictions' : 'More bonus predictions (optional)'}
-                    </button>
-
-                    {showMore && (
+                    {(q.pole || q.fastestLap || q.firstRetirement || q.safetyCar) && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.6rem' }}>
-                            <DriverPicker label="Most positions gained (+3)" drivers={drivers} value={value.positionsGained} disabled={disabled}
-                                onChange={v => onChange({ ...value, positionsGained: v })} />
-                            <DriverPicker label="Biggest position loss (+3)" drivers={drivers} value={value.positionsLost} disabled={disabled}
-                                onChange={v => onChange({ ...value, positionsLost: v })} />
-                            <div>
-                                <label style={fieldLabelStyle}>Winning margin (+2)</label>
-                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                    {MARGIN_OPTIONS.map(opt => (
-                                        <button key={opt.value} type="button" disabled={disabled}
-                                            onClick={() => onChange({ ...value, winningMargin: value.winningMargin === opt.value ? '' : opt.value })}
-                                            style={pillStyle(value.winningMargin === opt.value)}>
-                                            {opt.label}
-                                        </button>
-                                    ))}
+                            {q.pole && (
+                                <DriverPicker label="Pole position (+3)" drivers={drivers} value={value.pole} disabled={disabled}
+                                    onChange={v => onChange({ ...value, pole: v })} />
+                            )}
+                            {q.fastestLap && (
+                                <DriverPicker label="Fastest lap (+3)" drivers={drivers} value={value.fastestLap} disabled={disabled}
+                                    onChange={v => onChange({ ...value, fastestLap: v })} />
+                            )}
+                            {q.firstRetirement && (
+                                <DriverPicker label="First retirement (+2)" drivers={drivers} value={value.firstRetirement} disabled={disabled}
+                                    onChange={v => onChange({ ...value, firstRetirement: v })} />
+                            )}
+                            {q.safetyCar && (
+                                <div>
+                                    <label style={fieldLabelStyle}>Safety car? (+2)</label>
+                                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                        {(['yes', 'no'] as const).map(opt => (
+                                            <button key={opt} type="button" disabled={disabled}
+                                                onClick={() => onChange({ ...value, safetyCar: value.safetyCar === opt ? '' : opt })}
+                                                style={pillStyle(value.safetyCar === opt)}>
+                                                {opt === 'yes' ? 'Yes' : 'No'}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <label style={fieldLabelStyle}>Retirements (+2)</label>
-                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                    {RETIREMENTS_OPTIONS.map(opt => (
-                                        <button key={opt.value} type="button" disabled={disabled}
-                                            onClick={() => onChange({ ...value, retirements: value.retirements === opt.value ? '' : opt.value })}
-                                            style={pillStyle(value.retirements === opt.value)}>
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            )}
                         </div>
+                    )}
+
+                    {(q.positionsGained || q.positionsLost || q.winningMargin || q.retirements) && (
+                        <>
+                            <button type="button" onClick={() => setShowMore(s => !s)}
+                                style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                                {showMore ? 'Hide extra bonus predictions' : 'More bonus predictions (optional)'}
+                            </button>
+
+                            {showMore && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                                    {q.positionsGained && (
+                                        <DriverPicker label="Most positions gained (+3)" drivers={drivers} value={value.positionsGained} disabled={disabled}
+                                            onChange={v => onChange({ ...value, positionsGained: v })} />
+                                    )}
+                                    {q.positionsLost && (
+                                        <DriverPicker label="Biggest position loss (+3)" drivers={drivers} value={value.positionsLost} disabled={disabled}
+                                            onChange={v => onChange({ ...value, positionsLost: v })} />
+                                    )}
+                                    {q.winningMargin && (
+                                        <div>
+                                            <label style={fieldLabelStyle}>Winning margin (+2)</label>
+                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                {MARGIN_OPTIONS.map(opt => (
+                                                    <button key={opt.value} type="button" disabled={disabled}
+                                                        onClick={() => onChange({ ...value, winningMargin: value.winningMargin === opt.value ? '' : opt.value })}
+                                                        style={pillStyle(value.winningMargin === opt.value)}>
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {q.retirements && (
+                                        <div>
+                                            <label style={fieldLabelStyle}>Retirements (+2)</label>
+                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                {RETIREMENTS_OPTIONS.map(opt => (
+                                                    <button key={opt.value} type="button" disabled={disabled}
+                                                        onClick={() => onChange({ ...value, retirements: value.retirements === opt.value ? '' : opt.value })}
+                                                        style={pillStyle(value.retirements === opt.value)}>
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}

@@ -9,7 +9,8 @@ import SportHeader, { sportImage } from '../../components/SportHeader';
 import ScoreStepper from '../../components/ScoreStepper';
 import SeriesPredictor from '../../components/SeriesPredictor';
 import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
-import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
+import type { MatchType, SeriesFormat, RaceSession, RaceBonusConfig } from '@/lib/types';
+import { defaultRaceBonusConfig, parseRaceBonusConfig } from '@/lib/types';
 import { scoringRulesLabel, calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
 
 interface Match {
@@ -84,6 +85,7 @@ export default function PredictionsPage() {
     const [racePreds, setRacePreds] = useState<Record<string, RaceWeekendPrediction>>({});
     const [tournamentName, setTournamentName] = useState('');
     const [tournamentSport, setTournamentSport] = useState('');
+    const [raceBonusConfig, setRaceBonusConfig] = useState<RaceBonusConfig>(defaultRaceBonusConfig());
     const [isTournamentActive, setIsTournamentActive] = useState(true);
     const [isCreator, setIsCreator] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -115,6 +117,7 @@ export default function PredictionsPage() {
 
             setTournamentName(tData?.name ?? '');
             setTournamentSport(tData?.sport ?? '');
+            setRaceBonusConfig(parseRaceBonusConfig(tData?.race_bonus_config));
             setIsTournamentActive(tData?.is_active === 1 || tData?.is_active === true);
             setIsCreator(tData?.created_by === (session?.user as any)?.id);
         } catch { /* ignore */ } finally { setLoading(false); }
@@ -249,6 +252,7 @@ export default function PredictionsPage() {
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
                                     onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
+                                    raceBonusConfig={raceBonusConfig}
                                     locked={!isTournamentActive}
                                     isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
@@ -267,6 +271,7 @@ export default function PredictionsPage() {
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
                                     onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
+                                    raceBonusConfig={raceBonusConfig}
                                     locked isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
                             ))}
@@ -285,6 +290,7 @@ export default function PredictionsPage() {
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
                                     onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
+                                    raceBonusConfig={raceBonusConfig}
                                     locked showResult isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
                             ))}
@@ -301,7 +307,7 @@ export default function PredictionsPage() {
 function PredCard({
     match, tournamentId,
     scorePrediction, racePrediction,
-    onSubmitScore, onSubmitRaceWeekend,
+    onSubmitScore, onSubmitRaceWeekend, raceBonusConfig,
     locked = false, showResult = false,
     isPremium = false, onLoadStats,
     stats, statsOpen, statsLoading,
@@ -310,6 +316,7 @@ function PredCard({
     scorePrediction?: ScorePrediction; racePrediction?: RaceWeekendPrediction;
     onSubmitScore: (id: string, a: number, b: number) => void;
     onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => void;
+    raceBonusConfig?: RaceBonusConfig;
     locked?: boolean; showResult?: boolean;
     isPremium?: boolean; onLoadStats?: (id: string) => void;
     stats?: MatchStats; statsOpen?: boolean; statsLoading?: boolean;
@@ -318,7 +325,7 @@ function PredCard({
 
     if (matchType === 'race') {
         return <RaceCard match={match} tournamentId={tournamentId} racePrediction={racePrediction}
-            onSubmitRaceWeekend={onSubmitRaceWeekend} locked={locked} showResult={showResult} />;
+            onSubmitRaceWeekend={onSubmitRaceWeekend} raceBonusConfig={raceBonusConfig} locked={locked} showResult={showResult} />;
     }
 
     return <ScoreCard match={match} tournamentId={tournamentId}
@@ -330,9 +337,10 @@ function PredCard({
 
 // ─── RaceCard ────────────────────────────────────────────────────────────────
 
-function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, locked, showResult }: {
+function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, raceBonusConfig, locked, showResult }: {
     match: Match; tournamentId: string; racePrediction?: RaceWeekendPrediction;
     onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => void;
+    raceBonusConfig?: RaceBonusConfig;
     locked?: boolean; showResult?: boolean;
 }) {
     const [editing, setEditing] = useState(false);
@@ -374,7 +382,7 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, lo
                 positionsGainedResult: match.positions_gained_result, positionsLostResult: match.positions_lost_result,
                 winningMarginResult: match.winning_margin_result, retirementsResult: match.retirements_result,
             },
-            match.race_session ?? null, multiplier
+            match.race_session ?? null, multiplier, raceBonusConfig ?? defaultRaceBonusConfig()
         )
         : null;
 
@@ -441,6 +449,7 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, lo
                             value={form}
                             onChange={setForm}
                             mode="predict"
+                            enabledQuestions={raceBonusConfig}
                         />
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                             <button className="btn btn-success btn-sm" onClick={handleSave}
