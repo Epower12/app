@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { refreshAllNews, purgeOffTopic } from '@/lib/news';
+import { refreshAllNews, purgeOffTopic, purgeMiscategorizedAndDuplicates } from '@/lib/news';
 
 /**
  * POST /api/news/refresh
@@ -42,10 +42,17 @@ async function handle(request: Request) {
             ? await purgeOffTopic()
             : 0;
 
+        // Optional one-shot cleanup of already-stored miscategorized/duplicate items.
+        // Call with `?cleanup=1` — see purgeMiscategorizedAndDuplicates() for what it does.
+        const cleanup = url.searchParams.get('cleanup') === '1'
+            ? await purgeMiscategorizedAndDuplicates()
+            : null;
+
         const result = await refreshAllNews();
         return NextResponse.json({
             ok: true,
             purged,
+            cleanup,
             ...result,
             at: new Date().toISOString(),
         });
