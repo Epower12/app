@@ -39,7 +39,7 @@ function LoginPageInner() {
     };
 
     return (
-        <div className="auth-split">
+        <div className="auth-split auth-bright">
             {/* ---- Left Visual Panel ---- */}
             <div className="auth-visual">
                 <div className="auth-visual-media" aria-hidden="true">

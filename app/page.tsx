@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import HomeRouter from './HomeRouter';
 import SoftwareApplicationJsonLd from './components/SoftwareApplicationJsonLd';
 import { getVisitorRegion } from './landing/region';
@@ -16,6 +16,12 @@ export const metadata: Metadata = {
             'Free sports score prediction platform. Predict scorelines, compete with friends, climb the leaderboard.',
         url: 'https://yourfriendleague.com/',
     },
+};
+
+// The landing page is light; match the mobile browser chrome to it.
+export const viewport: Viewport = {
+    themeColor: '#fff7ec',
+    colorScheme: 'light',
 };
 
 export default async function Home() {
