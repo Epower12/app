@@ -1,0 +1,49 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-6b8cb570-b233-4a52-815
+  REGION: us-central1
+  SERVICE: sport-predictions
+  IMAGE: gcr.io/project-6b8cb570-b233-4a52-815/sport-predictions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/384824763603/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@project-6b8cb570-b233-4a52-815.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for gcr.io
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build image
+        run: docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+
+      - name: Push image
+        run: |
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image="$IMAGE:${{ github.sha }}" \
+            --region="$REGION" \
+            --allow-unauthenticated
