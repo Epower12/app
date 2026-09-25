@@ -12,10 +12,16 @@ export interface NhlGame {
     awayTeam: string;
     homeScore: number | null;
     awayScore: number | null;
-    status: 'scheduled' | 'live' | 'finished';
+    status: 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled';
 }
 
-function mapGameState(state: string): 'scheduled' | 'live' | 'finished' {
+/**
+ * NHL final scores already count a shoot-out win as one extra goal for the
+ * winner, which is exactly the rule we use elsewhere, so no adjustment needed.
+ */
+function mapGameState(state: string, scheduleState?: string): NhlGame['status'] {
+    if (scheduleState === 'PPD' || scheduleState === 'SUSP') return 'postponed';
+    if (scheduleState === 'CNCL') return 'cancelled';
     if (state === 'OFF' || state === 'FINAL') return 'finished';
     if (state === 'LIVE' || state === 'CRIT') return 'live';
     return 'scheduled';
@@ -56,7 +62,7 @@ export async function fetchNhlSeasonGames(seasonStartYear: number): Promise<NhlG
                     awayTeam: teamName(g.awayTeam),
                     homeScore: g.homeTeam?.score ?? null,
                     awayScore: g.awayTeam?.score ?? null,
-                    status: mapGameState(g.gameState),
+                    status: mapGameState(g.gameState, g.gameScheduleState),
                 });
             }
         }

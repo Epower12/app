@@ -341,6 +341,20 @@ export async function runMigrations() {
     // tournaments: per-league toggle for which race bonus questions are active.
     // NULL means "use the suggested defaults" (see defaultRaceBonusConfig in lib/types.ts).
     await run(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS race_bonus_config JSONB`);
+
+    // Automatic results. matches.result_source says who entered the result
+    // ('api' = filled in by the sync, 'manual' = the organiser; NULL = before this
+    // existed, treated as manual). An organiser's result is never overwritten;
+    // result_note explains anything the organiser should look at (a different
+    // official score, a postponement, a bonus answer still to enter).
+    await run(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS result_source TEXT`);
+    await run(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS result_note TEXT`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_matches_api_match ON matches(api_match_id) WHERE api_match_id IS NOT NULL`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_matches_api_race ON matches(api_race_id) WHERE api_race_id IS NOT NULL`);
+    // api_races: the full classification (not just the podium) and the pole sitter.
+    await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS result_rows JSONB`);
+    await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS pole_driver TEXT`);
+    await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS pole_number TEXT`);
 }
 
 // One shared run per server process: the startup hook (instrumentation.ts) and

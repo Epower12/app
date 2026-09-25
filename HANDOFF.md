@@ -187,7 +187,7 @@ Carried the landing-3d language into the production Next.js app so landing→app
 - `lib/jolpicaF1.ts` — Jolpica-F1 (`api.jolpi.ca`, free community Ergast mirror, no key, verified live, includes race results for podium P1/P2/P3)
 - `lib/api-sports.ts` generalized to also support Football (still Free-plan-capped to 2022-2024, kept for whenever/if the plan is upgraded)
 - `lib/fixtureSync.ts` — shared sync/upsert logic per provider
-- `app/api/fixtures/sync` — daily Cloud Scheduler cron (`fixture-sync-daily`, 06:00 UTC, bearer-secret `FIXTURE_SYNC_SECRET`, mirrors `/api/news/refresh`'s pattern), re-syncs every tracked source
+- `app/api/fixtures/sync` — Cloud Scheduler cron (`fixture-sync-daily`, bearer-secret `FIXTURE_SYNC_SECRET`; switch it to every 30 min, see docs/RESULTS.md). Refreshes the sources that are due and applies finished results to imported league matches (`lib/applyResults.ts`)
 - `app/api/matches/import-race` — new route: F1 races are podium picks (P1/P2/P3 driver), not team-vs-team scores, so they stage into a new `api_races` table instead of `api_matches`
 - `/owner` sync form and `/manage`'s import tab are now source/provider-aware
 

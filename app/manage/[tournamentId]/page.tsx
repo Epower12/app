@@ -6,7 +6,7 @@ import { Fragment, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import SportHeader, { sportImage } from '../../components/SportHeader';
-import { formatKickoff, timeUntil } from '@/lib/format';
+import { formatKickoff, plural, timeUntil } from '@/lib/format';
 import ScoreStepper from '../../components/ScoreStepper';
 import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
 import type { MatchType, SeriesFormat, RaceSession, RaceBonusConfig, RaceBonusQuestionKey } from '@/lib/types';
@@ -39,6 +39,10 @@ interface Match {
     winning_margin_result?: string | null; retirements_result?: string | null;
     is_season_finale?: boolean;
     prediction_count?: number;
+    /** 'api' = filled in automatically, 'manual' = entered by the organiser. */
+    result_source?: string | null;
+    /** Something the organiser should look at (official score differs, postponed, …). */
+    result_note?: string | null;
 }
 
 function raceResultToForm(m?: Match): RaceWeekendFormState {
@@ -114,6 +118,8 @@ function ManagePageInner() {
     const [isActive, setIsActive] = useState(true);
     const [linkCopied, setLinkCopied] = useState(false);
     const [scoreMsg, setScoreMsg] = useState('');
+    const [checkingResults, setCheckingResults] = useState(false);
+    const [checkMsg, setCheckMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
     const [matches, setMatches] = useState<Match[]>([]);
     const [tournamentName, setTournamentName] = useState('');
@@ -501,10 +507,37 @@ function ManagePageInner() {
         setMatchEditLoading(false);
     };
 
+    const checkResultsNow = async () => {
+        setCheckingResults(true);
+        setCheckMsg(null);
+        try {
+            const res = await fetch(`/api/tournaments/${tournamentId}/check-results`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) {
+                setCheckMsg({ ok: false, text: data.error || 'Could not check for results.' });
+            } else {
+                const parts: string[] = [];
+                if (data.filled) parts.push(`${plural(data.filled, 'result', 'results')} filled in`);
+                if (data.corrected) parts.push(`${plural(data.corrected, 'result', 'results')} corrected`);
+                if (data.rescheduled) parts.push(`${plural(data.rescheduled, 'kick-off', 'kick-offs')} moved`);
+                if (data.flagged) parts.push(`${plural(data.flagged, 'match needs', 'matches need')} your attention`);
+                const failed = data.failed?.length ? ` Couldn't reach: ${data.failed.join(', ')}.` : '';
+                setCheckMsg({ ok: !failed, text: (parts.length ? `Done: ${parts.join(', ')}.` : 'All up to date: no new results yet.') + failed });
+                fetchData();
+            }
+        } catch {
+            setCheckMsg({ ok: false, text: 'Could not check for results. Check your connection and try again.' });
+        }
+        setCheckingResults(false);
+    };
+    const hasImported = matches.some(m => m.source === 'api');
+
     // Matches split by what the organiser needs to do with them.
     const nowSec = Date.now() / 1000;
     const matchGroups = [
-        { key: 'needs', title: 'Needs a result', help: 'These have started. Enter the final score so everyone gets their points.',
+        { key: 'needs', title: 'Needs a result', help: hasImported
+            ? 'These have started. Imported matches fill in by themselves shortly after the final whistle; enter anything else yourself.'
+            : 'These have started. Enter the final score so everyone gets their points.',
           items: matches.filter(m => !m.is_finished && m.scheduled_time <= nowSec) },
         { key: 'upcoming', title: 'Upcoming', help: 'Open for predictions until kick-off. You can still edit or delete them.',
           items: matches.filter(m => !m.is_finished && m.scheduled_time > nowSec) },
@@ -728,6 +761,21 @@ function ManagePageInner() {
                 {/* --- MATCHES LIST --- */}
                 {tab === 'matches' && (
                     <div>
+                        {hasImported && (
+                            <div className="auto-results-bar">
+                                <div>
+                                    <strong>Automatic results are on.</strong>{' '}
+                                    Imported matches get their official result about every 30 minutes, and points appear straight away.
+                                    A result you enter yourself is never overwritten.
+                                </div>
+                                <button className="btn btn-secondary btn-sm" onClick={checkResultsNow} disabled={checkingResults}>
+                                    {checkingResults ? 'Checking…' : 'Check for results now'}
+                                </button>
+                                {checkMsg && (
+                                    <p role="status" className={checkMsg.ok ? 'auto-results-msg' : 'auto-results-msg auto-results-msg-warn'}>{checkMsg.text}</p>
+                                )}
+                            </div>
+                        )}
                         {matches.length === 0 ? (
                             <div className="empty-state">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -782,6 +830,7 @@ function ManagePageInner() {
                                                                             {m.match_type === 'race' && m.is_season_finale && <span className="status-chip status-chip-live">Finale ×2</span>}
                                                                             <span className="status-chip status-chip-muted" title={m.source === 'api' ? 'Imported from a fixture feed' : 'Added by hand'}>{m.source === 'api' ? 'Imported' : 'Manual'}</span>
                                                                         </div>
+                                                                        {m.result_note && <p className="result-note" role="note">⚠️ {m.result_note}</p>}
                                                                     </td>
                                                                     <td data-label="Picks" className="num">{m.prediction_count ?? 0}</td>
                                                                     <td data-label="Result">
@@ -790,9 +839,12 @@ function ManagePageInner() {
                                                                                 ? <span className="status-chip status-chip-done">{(m.top10_result ?? []).slice(0, 3).join(' · ') || 'Entered'}</span>
                                                                                 : <span className="status-chip status-chip-done">{m.team_a_score} – {m.team_b_score}</span>
                                                                         ) : started ? (
-                                                                            <span className="status-chip status-chip-live">Needs result</span>
+                                                                            <span className="status-chip status-chip-live">{m.source === 'api' ? 'Waiting for result' : 'Needs result'}</span>
                                                                         ) : (
                                                                             <span className="status-chip status-chip-upcoming">Not started</span>
+                                                                        )}
+                                                                        {m.is_finished && m.result_source === 'api' && (
+                                                                            <span className="result-auto" title="Filled in automatically from the official result">auto</span>
                                                                         )}
                                                                     </td>
                                                                     <td className="num stack-actions" style={{ whiteSpace: 'nowrap' }}>
