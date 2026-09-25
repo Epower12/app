@@ -8,6 +8,13 @@
  * so the page looks right before the video loads or when motion is reduced.
  */
 
+// AI-generated with Ideogram (docs/scripts/generate-landing-images.sh). Imported so
+// Next bundles them with the page — no /public copy needed.
+import whyDebateImg from './img/why-debate.webp';
+import whyMatterImg from './img/why-matter.webp';
+import whyFriendsImg from './img/why-friends.webp';
+import finaleImg from './img/finale-celebration.webp';
+
 export interface Credit {
     author: string;
     /** Source page of the clip (Pexels asks for a link back). */
@@ -29,7 +36,7 @@ const PEXELS = 'https://videos.pexels.com/video-files';
 
 export const MEDIA = {
     hero: {
-        img: '/img/sport-crowd.png',
+        img: whyDebateImg.src,
         video: `${PEXELS}/6104279/6104279-hd_1920_1080_25fps.mp4`,
         credit: { author: 'Kampus Production', href: 'https://www.pexels.com/video/sports-fans-cheering-on-the-couch-6104279/' },
     },
@@ -65,11 +72,11 @@ export const MEDIA = {
         credit: { author: 'Antoni Shkraba', href: 'https://www.pexels.com/video/a-tennis-player-serving-the-ball-4902773/' },
     },
 
-    whyDebate: { img: '/img/sport-crowd.png' },
-    whyMatter: { img: '/img/sport-scoreboard.png' },
-    whyFriends: { img: '/img/sport-floodlight.png' },
+    whyDebate: { img: whyDebateImg.src },
+    whyMatter: { img: whyMatterImg.src },
+    whyFriends: { img: whyFriendsImg.src },
 
-    finale: { img: '/img/cta-celebration.png' },
+    finale: { img: finaleImg.src },
 } satisfies Record<string, Media>;
 
 /** Unique credits for every clip on the page, for the footer. */
