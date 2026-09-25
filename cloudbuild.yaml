@@ -1,0 +1,41 @@
+# Cloud Build pipeline for yourfriendleague.com.
+# Wired to a Cloud Build trigger on push to `main` (github.com/Epower12/app).
+# Builds the Docker image, pushes it to GCR, then rolls it out to Cloud Run.
+# NOTE: env vars / secrets (DATABASE_URL, NEXTAUTH_SECRET, OAuth client IDs, etc.)
+# are already set on the Cloud Run service itself and are preserved automatically
+# by `gcloud run deploy` when only --image is changed — nothing to pass here.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/sport-predictions:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/sport-predictions:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/sport-predictions:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/sport-predictions:latest']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'sport-predictions'
+      - '--image=gcr.io/$PROJECT_ID/sport-predictions:$COMMIT_SHA'
+      - '--region=us-central1'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/sport-predictions:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/sport-predictions:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
