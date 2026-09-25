@@ -1,0 +1,59 @@
+---
+title: "Why exact-score prediction is the real skill"
+description: "Match outcome is the easy part. The exact score separates the casual fan from someone who actually understands the game."
+date: "2026-05-27"
+author: "YourFriendsLeague Team"
+category: "Strategy"
+tags: ["scoring", "strategy", "predictions"]
+featured: true
+---
+
+Most prediction games stop at "who wins." Pick the winner, get a point, move on. Easy.
+
+But anyone who's watched enough sport knows the binary outcome is the *least* interesting question. Two teams can have wildly different scoring patterns, defensive shapes, and game states — and yet end up with the same winner. Predicting the **exact score** forces you to engage with all of it.
+
+That's why our scoring system rewards precision exponentially:
+
+- **+5 pts** — Exact score (you said 3–1, it's 3–1)
+- **+3 pts** — Correct winner *and* exact goal difference
+- **+2 pts** — Correct winner, wrong margin
+- **+0 pts** — Wrong winner
+
+The gap between +2 and +5 isn't arbitrary. It reflects how much more *signal* is in the exact prediction versus a coin-flip-tier "team A wins."
+
+## What predicting the score actually measures
+
+When you commit to "Finland 3, Sweden 1," you're implicitly making a lot of statements:
+
+1. **Both teams will score** — not a clean sheet, not a high-scoring shootout
+2. **The game won't go to overtime/penalties** (in formats where that matters)
+3. **The favorite wins by exactly two goals** — not one, not three
+4. **The tempo is moderate** — four total goals, average for top-flight hockey
+
+Each of those is a small bet against a distribution. Get most of them right and you'll land on the exact score. That's not luck — that's a model of the game in your head, calibrated against years of pattern recognition.
+
+## The honest math: why exact scores are hard
+
+In hockey, the most common scoreline in NHL regulation is **3–2** (~9% of all games). Even guessing 3–2 every single time, you'd be wrong 91% of the time on the exact score. The frequencies for football are even flatter — **1–1, 2–1, 1–0, and 2–0** all hover around 9–11% individually.
+
+So a perfect-score prediction is genuinely rare. We could have made +5 worth +10 to crank the variance, but we landed on +5 because:
+
+- It's enough of a multiplier to *matter* across a season
+- It's low enough that one lucky guess doesn't lock down the leaderboard
+- It rewards consistency over flash
+
+## Why we don't reward "draws are hard" the same way
+
+We tried. The early drafts of the scoring system had a "+1 bonus for correctly predicting a draw" because draws are statistically less common than wins. But it warped the meta — players started over-predicting 0–0s to farm the bonus, and the leaderboard rewarded contrarianism over actual sport knowledge.
+
+The cleanest rule is the simplest one: **predict the precise outcome you believe will happen, and we'll reward you proportionally to how close you got.** Everything else is incentive design noise.
+
+## What to do with this
+
+If you're new to YourFriendsLeague, the most common mistake we see is **predicting too cautiously**. People hedge toward 1–0 / 2–1 / 0–0 because those scorelines feel "safe."
+
+They're not safe. They're just *common* — which means everyone else is also guessing them. The leaderboard rewards being **right and uncommon**, not just right.
+
+If you genuinely think tonight's game is a 4–3 thriller, predict 4–3. If you're wrong you'll get 0 or 2, which is what you'd get from a safer guess anyway. But if you're right — even *roughly* right — you'll pull ahead of every "1–0 just in case" prediction in the league.
+
+Trust your read of the game. The points follow.

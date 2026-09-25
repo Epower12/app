@@ -1,0 +1,20 @@
+# [build]
+#   command = "npm run build"
+#   publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Environment variables — set these in Netlify UI → Site settings → Environment variables:
+# NEXTAUTH_URL      = https://your-site.netlify.app
+# NEXTAUTH_SECRET   = (generate: openssl rand -base64 32)
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

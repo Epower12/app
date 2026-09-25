@@ -1,0 +1,64 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# database
+/data/*
+!/data/.keep
+*.db
+*.sqlite
+*.sqlite3
+db_audit.json
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local build logs
+build_log.txt
+build_log_full.txt
+build_log_utf8.txt
+files.txt
+files_utf8.txt
+
+# landing-3d is a standalone Vite prototype with its own package.json/node_modules
+landing-3d/node_modules
+landing-3d/dist
+
+# one-off local admin script with a hardcoded live DB credential — never commit
+reset_true_owner.js
