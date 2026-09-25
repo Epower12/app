@@ -10,22 +10,23 @@
   overflow-x: clip;
 }
 
-/* ---------- Hero ---------- */
-.ld-hero {
-  display: flex;
-  height: 100vh;
-  height: 100svh;
-  flex-direction: column;
-  overflow-x: clip;
-}
-
-.ld-nav {
+/* ---------- Top nav (fixed — reachable at every scroll position) ---------- */
+.ld-topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.5rem 1.5rem 0;
+  padding: 1.1rem 1.5rem;
+  background: rgba(5, 10, 20, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(241, 245, 249, 0.08);
 }
-.ld-nav a {
+.ld-topnav a {
   font-size: 0.875rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -33,7 +34,17 @@
   color: #f1f5f9;
   transition: opacity 0.2s ease;
 }
-.ld-nav a:hover { opacity: 0.7; }
+.ld-topnav a:hover { opacity: 0.7; }
+
+/* ---------- Hero ---------- */
+.ld-hero {
+  display: flex;
+  height: 100vh;
+  height: 100svh;
+  flex-direction: column;
+  overflow-x: clip;
+  padding-top: 3.75rem; /* clears the fixed .ld-topnav */
+}
 
 .ld-hero-headline-wrap {
   overflow: hidden;
@@ -83,13 +94,13 @@
 
 .ld-hero-bottom {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
   padding: 0 1.5rem 1.75rem;
 }
 .ld-hero-tagline {
-  max-width: 180px;
+  max-width: 320px;
   font-weight: 300;
   text-transform: uppercase;
   line-height: 1.4;
@@ -98,27 +109,12 @@
   font-size: clamp(0.75rem, 1.2vw, 1.15rem);
 }
 
-/* ---------- Marquee ---------- */
-.ld-marquee {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  overflow: hidden;
-  background: #050a14;
-  padding-bottom: 2.5rem;
-  padding-top: 6rem;
-}
-.ld-marquee-row {
-  display: flex;
-  gap: 0.75rem;
-  will-change: transform;
-}
-.ld-marquee-row img {
-  height: 270px;
-  width: 420px;
-  flex-shrink: 0;
-  border-radius: 1rem;
-  object-fit: cover;
+@media (min-width: 480px) {
+  .ld-hero-bottom {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
 }
 
 /* ---------- The game ---------- */
@@ -160,6 +156,47 @@
   line-height: 1;
   font-size: clamp(3rem, 12vw, 160px);
 }
+.ld-game-kicker {
+  max-width: 420px;
+  text-align: center;
+  font-weight: 300;
+  font-style: italic;
+  line-height: 1.5;
+  color: #94a3b8;
+  font-size: clamp(0.9rem, 1.6vw, 1.1rem);
+}
+.ld-game-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  width: 100%;
+  max-width: 900px;
+}
+.ld-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+.ld-step-number {
+  line-height: 1;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+.ld-step-title {
+  font-family: 'Russo One', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #f1f5f9;
+  font-size: clamp(1rem, 2vw, 1.3rem);
+}
+.ld-step-desc {
+  max-width: 260px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: #94a3b8;
+  font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+}
 .ld-game-copy {
   max-width: 600px;
   text-align: center;
@@ -169,6 +206,11 @@
   color: #f1f5f9;
 }
 .ld-game-cta { margin-top: 1rem; }
+
+@media (min-width: 640px) {
+  .ld-game-steps { flex-direction: row; gap: 2.5rem; }
+  .ld-step { flex: 1; }
+}
 
 /* ---------- Scoring (white section) ---------- */
 .ld-scoring {
@@ -294,17 +336,18 @@
   margin-top: -2.5rem;
   border-radius: 40px 40px 0 0;
   background: #050a14;
-  padding: 5rem 1rem 6rem;
+  padding: 3.5rem 1rem 4rem;
+  --matchday-sticky-top: 4rem;
 }
 .ld-matchday-title {
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.75rem;
   text-align: center;
   line-height: 1;
   font-size: clamp(3rem, 12vw, 160px);
 }
 .ld-match-sticky {
   position: sticky;
-  height: 85vh;
+  height: 60vh;
 }
 .ld-match-card {
   border-radius: 40px;
@@ -425,7 +468,6 @@
 @media (min-width: 640px) {
   .ld-hero-bottom { padding-bottom: 2rem; }
   .ld-hero-tagline { max-width: 260px; }
-  .ld-marquee { padding-top: 8rem; }
   .ld-game { padding-left: 2rem; padding-right: 2rem; }
   .ld-game-content { gap: 3rem; }
   .ld-scoring { border-radius: 50px 50px 0 0; padding: 6rem 2rem; }
@@ -433,9 +475,10 @@
   .ld-tier-row { gap: 2.5rem; padding: 2.5rem 0; }
   .ld-scoring-note { font-size: 1rem; }
   .ld-premium-card { margin-top: 5rem; }
-  .ld-matchday { margin-top: -3rem; border-radius: 50px 50px 0 0; padding-left: 1.5rem; padding-right: 1.5rem; }
+  .ld-matchday { margin-top: -3rem; border-radius: 50px 50px 0 0; padding-top: 5rem; padding-bottom: 6rem; padding-left: 1.5rem; padding-right: 1.5rem; --matchday-sticky-top: 6rem; }
   .ld-matchday-title { margin-bottom: 3.5rem; }
   .ld-match-card { border-radius: 50px; padding: 1.5rem; }
+  .ld-match-sticky { height: 85vh; }
   .ld-match-head { margin-bottom: 1.5rem; padding: 0 1rem; }
   .ld-match-id { gap: 2rem; }
   .ld-match-format { font-size: 0.875rem; }
@@ -445,13 +488,13 @@
 }
 
 @media (min-width: 768px) {
-  .ld-nav { padding: 2rem 2.5rem 0; }
-  .ld-nav a { font-size: 1.125rem; }
+  .ld-topnav { padding: 1.4rem 2.5rem; }
+  .ld-topnav a { font-size: 1.125rem; }
+  .ld-hero { padding-top: 4.5rem; }
   .ld-hero-video-zone { padding-top: 1rem; padding-bottom: 1rem; }
   .ld-hero-video-card { border-radius: 1.5rem; }
   .ld-hero-bottom { padding: 0 2.5rem 2.5rem; }
   .ld-hero-tagline { max-width: 320px; }
-  .ld-marquee { padding-top: 10rem; }
   .ld-game { padding-left: 2.5rem; padding-right: 2.5rem; }
   .ld-game-content { gap: 3.5rem; }
   .ld-scoring { border-radius: 60px 60px 0 0; padding: 8rem 2.5rem; }
@@ -468,5 +511,5 @@
 }
 
 @media (min-width: 1024px) {
-  .ld-nav a { font-size: 1.15rem; }
+  .ld-topnav a { font-size: 1.15rem; }
 }

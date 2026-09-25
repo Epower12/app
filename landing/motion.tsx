@@ -11,12 +11,16 @@ interface FadeInProps {
     x?: number;
     y?: number;
     className?: string;
+    role?: string;
+    'aria-label'?: string;
 }
 
-export function FadeIn({ children, delay = 0, duration = 0.7, x = 0, y = 30, className }: FadeInProps) {
+export function FadeIn({ children, delay = 0, duration = 0.7, x = 0, y = 30, className, role, 'aria-label': ariaLabel }: FadeInProps) {
     return (
         <motion.div
             className={className}
+            role={role}
+            aria-label={ariaLabel}
             initial={{ opacity: 0, x, y }}
             whileInView={{ opacity: 1, x: 0, y: 0 }}
             viewport={{ once: true, margin: '50px', amount: 0 }}

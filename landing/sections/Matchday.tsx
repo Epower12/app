@@ -4,11 +4,15 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { FadeIn } from '../motion';
+import type { VisitorRegion } from '../region';
 
-const SPORTS = [
+function buildSports(region: VisitorRegion) {
+    return [
     {
         number: '01',
-        name: 'Football',
+        // US visitors mean "American football" by default when they read "football" —
+        // regional SEO/UX fix: US sees "Soccer", everyone else sees "Football".
+        name: region === 'us' ? 'Soccer' : 'Football',
         format: 'Exact score',
         video: '/video/football.mp4',
         poster: '/img/sport-football.png',
@@ -34,7 +38,10 @@ const SPORTS = [
         video: '/video/racing.mp4',
         poster: '/img/sport-racing.png',
     },
-];
+    ];
+}
+
+type Sport = ReturnType<typeof buildSports>[number];
 
 function Card({
     sport,
@@ -42,7 +49,7 @@ function Card({
     total,
     progress,
 }: {
-    sport: (typeof SPORTS)[number];
+    sport: Sport;
     index: number;
     total: number;
     progress: MotionValue<number>;
@@ -51,7 +58,7 @@ function Card({
     const scale = useTransform(progress, [index / total, 1], [1, targetScale]);
 
     return (
-        <div className="ld-match-sticky" style={{ top: `calc(6rem + ${index * 28}px)` }}>
+        <div className="ld-match-sticky" style={{ top: `calc(var(--matchday-sticky-top) + ${index * 28}px)` }}>
             <motion.div style={{ scale }} className="ld-match-card">
                 <div className="ld-match-head">
                     <div className="ld-match-id">
@@ -79,12 +86,13 @@ function Card({
     );
 }
 
-export default function Matchday() {
+export default function Matchday({ region }: { region: VisitorRegion }) {
     const ref = useRef<HTMLElement>(null);
     const { scrollYProgress } = useScroll({
         target: ref,
         offset: ['start start', 'end end'],
     });
+    const sports = buildSports(region);
 
     return (
         <section id="matchday" ref={ref} className="ld-matchday">
@@ -92,8 +100,8 @@ export default function Matchday() {
                 <h2 className="hero-heading ld-matchday-title">Matchday</h2>
             </FadeIn>
 
-            {SPORTS.map((sport, i) => (
-                <Card key={sport.name} sport={sport} index={i} total={SPORTS.length} progress={scrollYProgress} />
+            {sports.map((sport, i) => (
+                <Card key={sport.number} sport={sport} index={i} total={sports.length} progress={scrollYProgress} />
             ))}
         </section>
     );

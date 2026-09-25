@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import HomeRouter from './HomeRouter';
 import SoftwareApplicationJsonLd from './components/SoftwareApplicationJsonLd';
+import { getVisitorRegion } from './landing/region';
 
 export const metadata: Metadata = {
     title: 'YourFriendsLeague — Predict. Compete. Dominate.',
@@ -17,11 +18,12 @@ export const metadata: Metadata = {
     },
 };
 
-export default function Home() {
+export default async function Home() {
+    const region = await getVisitorRegion();
     return (
         <>
             <SoftwareApplicationJsonLd />
-            <HomeRouter />
+            <HomeRouter region={region} />
         </>
     );
 }

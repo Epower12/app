@@ -3,7 +3,8 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import LandingPage from './landing/page';
+import LandingContent from './landing/LandingContent';
+import type { VisitorRegion } from './landing/region';
 
 /**
  * Client-side root entry. Three branches:
@@ -12,9 +13,10 @@ import LandingPage from './landing/page';
  *   - Unauthenticated → render the landing page in place
  *
  * Kept as a separate client component so the parent page.tsx can stay a Server
- * Component and emit page-level metadata + canonical URL.
+ * Component and emit page-level metadata + canonical URL (and resolve the
+ * visitor's region for regional landing copy).
  */
-export default function HomeRouter() {
+export default function HomeRouter({ region }: { region: VisitorRegion }) {
     const { data: session, status } = useSession();
     const router = useRouter();
 
@@ -39,7 +41,7 @@ export default function HomeRouter() {
     }
 
     if (!session) {
-        return <LandingPage />;
+        return <LandingContent region={region} />;
     }
 
     return (
