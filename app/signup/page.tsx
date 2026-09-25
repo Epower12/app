@@ -84,14 +84,15 @@ function SignupPageInner() {
     };
 
     const perks = [
-        'Multi-sport predictions',
-        'Points for precision',
-        'Live leaderboards',
-        'Private friend leagues',
+        'Free forever: no credit card',
+        'Football, hockey, basketball, F1 & tennis',
+        'Live leaderboards with your friends',
+        'No betting, no real money',
     ];
+    const premiumPlan = intent === 'premium' && (plan === 'monthly' || plan === 'yearly') ? plan : null;
 
     return (
-        <div className="auth-split auth-split-reverse">
+        <div className="auth-split auth-split-reverse auth-bright">
             {/* ---- Right Form Panel ---- */}
             <div className="auth-form-panel">
                 <div className="auth-form-inner">
@@ -99,6 +100,13 @@ function SignupPageInner() {
                         <h1 className="auth-form-title">Create account</h1>
                         <p className="auth-form-subtitle">It&apos;s free — no credit card needed</p>
                     </div>
+
+                    {premiumPlan && (
+                        <div className="auth-plan-note">
+                            <strong>Premium {premiumPlan === 'yearly' ? 'yearly · €49.99/yr' : 'monthly · €4.99/mo'}</strong>
+                            <span>Create your account and sign in, and we&apos;ll take you straight to secure Stripe checkout.</span>
+                        </div>
+                    )}
 
                     <OAuthButtons callbackUrl={oauthCallbackUrl} />
 

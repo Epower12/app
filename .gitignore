@@ -62,3 +62,6 @@ landing-3d/dist
 
 # one-off local admin script with a hardcoded live DB credential — never commit
 reset_true_owner.js
+
+# generated landing images (scripts/generate-landing-images.sh)
+/scripts/out/
