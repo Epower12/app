@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './theme-bright.css';
 import Providers from './providers';
 import OrganizationJsonLd from './components/OrganizationJsonLd';
 import GoogleAnalytics from './components/GoogleAnalytics';

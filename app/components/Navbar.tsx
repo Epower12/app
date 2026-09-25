@@ -29,15 +29,15 @@ export default function Navbar() {
     const user = session?.user as any;
     const [mobileOpen, setMobileOpen] = useState(false);
 
-    const links = [
-        { href: '/', label: 'Home' },
-        { href: '/tournaments', label: 'Leagues' },
-        { href: '/profile', label: 'Profile' },
+    // Each link lists the sections it "owns", so the right tab stays highlighted
+    // on the pages behind it (the old startsWith('/') check lit up Home everywhere).
+    const isOrganiser = user?.role === 'premium' || user?.role === 'admin';
+    const links: { href: string; label: string; match: string[] }[] = [
+        { href: '/tournaments', label: 'My leagues', match: ['/tournaments', '/predictions', '/leaderboard', '/join'] },
+        ...(isOrganiser ? [{ href: '/premium', label: 'Organiser', match: ['/premium', '/manage'] }] : []),
+        { href: '/profile', label: 'Profile', match: ['/profile'] },
     ];
-
-    if (user?.role === 'premium' || user?.role === 'admin') {
-        links.splice(1, 0, { href: '/premium', label: 'Dashboard' });
-    }
+    const isActive = (l: { match: string[] }) => l.match.some(m => pathname === m || pathname?.startsWith(m + '/'));
 
     const roleLabel =
         user?.role === 'admin' ? 'Admin' :
@@ -60,7 +60,8 @@ export default function Navbar() {
                             <Link
                                 key={l.href}
                                 href={l.href}
-                                className={`app-nav-link ${pathname?.startsWith(l.href) ? 'app-nav-link-active' : ''}`}
+                                className={`app-nav-link ${isActive(l) ? 'app-nav-link-active' : ''}`}
+                                aria-current={isActive(l) ? 'page' : undefined}
                             >
                                 {l.label}
                             </Link>
@@ -108,7 +109,8 @@ export default function Navbar() {
                         <Link
                             key={l.href}
                             href={l.href}
-                            className={`mobile-menu-link ${pathname?.startsWith(l.href) ? 'active' : ''}`}
+                            className={`mobile-menu-link ${isActive(l) ? 'active' : ''}`}
+                            aria-current={isActive(l) ? 'page' : undefined}
                             onClick={closeMobile}
                         >
                             {l.label}

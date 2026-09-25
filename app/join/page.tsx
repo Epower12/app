@@ -70,13 +70,13 @@ function JoinPageContent() {
             <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1.5rem' }}>
                 <div style={{
                     background: 'var(--bg-card)',
-                    border: '1px solid var(--border-color)',
+                    border: '2px solid var(--ink, #0f172a)',
                     borderRadius: 'var(--radius-lg)',
                     padding: '2.5rem 2rem',
                     maxWidth: 420,
                     width: '100%',
                     textAlign: 'center',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                    boxShadow: '0 5px 0 var(--ink, #0f172a)',
                 }}>
                     {phase === 'joining' && (
                         <>
@@ -96,7 +96,9 @@ function JoinPageContent() {
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
                                 {message}
                             </p>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Redirecting to predictions…</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                                Taking you to the matches. Predict each score before kick-off to start earning points.
+                            </p>
                         </>
                     )}
 
@@ -107,7 +109,7 @@ function JoinPageContent() {
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{message}</p>
                             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
                                 <button className="btn btn-primary" onClick={() => code && attemptJoin(code)}>Retry</button>
-                                <button className="btn btn-secondary" onClick={() => router.push('/tournaments')}>← Leagues</button>
+                                <button className="btn btn-secondary" onClick={() => router.push('/tournaments')}>My leagues</button>
                             </div>
                         </>
                     )}

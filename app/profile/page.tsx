@@ -313,16 +313,17 @@ export default function ProfilePage() {
 
                 {/* ── Profile Hero ── */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #1e2a4a 0%, #0f172a 100%)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius-lg)',
+                    background: '#fff',
+                    border: '2px solid var(--ink)',
+                    boxShadow: '0 5px 0 var(--ink)',
+                    borderRadius: 20,
                     padding: '2rem',
-                    marginBottom: '1.5rem',
+                    margin: '1.5rem 0',
                     position: 'relative',
                     overflow: 'hidden',
                 }}>
                     {/* Decorative glow */}
-                    <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: 'rgba(102,126,234,0.15)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(198,241,53,0.45)', filter: 'blur(50px)', pointerEvents: 'none' }} />
 
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap', position: 'relative' }}>
                         {/* Avatar */}
@@ -345,9 +346,9 @@ export default function ProfilePage() {
                                 <h1 style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{profile.username}</h1>
                                 {roleLabel && (
                                     <span style={{
-                                        background: profile.role === 'admin' ? 'rgba(239,68,68,0.2)' : 'rgba(249,115,22,0.2)',
-                                        color: profile.role === 'admin' ? '#ef4444' : '#f97316',
-                                        border: `1px solid ${profile.role === 'admin' ? 'rgba(239,68,68,0.4)' : 'rgba(249,115,22,0.4)'}`,
+                                        background: 'var(--ink)',
+                                        color: 'var(--lime)',
+                                        border: '1px solid var(--ink)',
                                         padding: '0.15rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
                                     }}>{profile.role === 'admin' ? '🛡️' : '💎'} {roleLabel}</span>
                                 )}
@@ -387,10 +388,10 @@ export default function ProfilePage() {
                 {/* ── Stats row ── */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
                     {[
-                        { label: 'Current Streak', value: `${profile.currentStreak} 🔥`, color: '#ff4757' },
-                        { label: 'Best Streak', value: `${profile.bestStreak} ⭐`, color: '#ffa502' },
-                        { label: 'Accuracy', value: `${profile.accuracy}% 🎯`, color: '#2ed573' },
-                        { label: 'Total Points', value: `${totalPoints} 🏆`, color: 'var(--color-primary)' },
+                        { label: 'Current streak', value: `${profile.currentStreak} 🔥`, color: '#b91c1c', help: 'Finished matches in a row where you scored points' },
+                        { label: 'Best streak', value: `${profile.bestStreak} ⭐`, color: '#a16207', help: 'Your longest run of scoring predictions' },
+                        { label: 'Accuracy', value: `${profile.accuracy}% 🎯`, color: '#15803d', help: 'Share of your finished score predictions that earned points' },
+                        { label: 'Total points', value: `${totalPoints} 🏆`, color: 'var(--ink)', help: 'All your leagues added together' },
                     ].map(s => (
                         <div key={s.label} style={{
                             background: 'var(--bg-card)', border: '1px solid var(--border-color)',
@@ -399,6 +400,7 @@ export default function ProfilePage() {
                         }}>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.4rem', fontWeight: 600 }}>{s.label}</div>
                             <div style={{ fontSize: '1.3rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', lineHeight: 1.35 }}>{s.help}</div>
                         </div>
                     ))}
                 </div>
@@ -551,7 +553,7 @@ export default function ProfilePage() {
 
                     {/* Right column — Prediction History */}
                     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '1.25rem' }}>
-                        <h2 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>📋 Recent Activity</h2>
+                        <h2 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>📋 Your recent predictions</h2>
                         {history.length === 0 ? (
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>No predictions yet.</p>
                         ) : (
@@ -562,10 +564,10 @@ export default function ProfilePage() {
                                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-primary)' }}>{item.tournamentName}</span>
                                             <span style={{
                                                 fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '999px',
-                                                background: item.points !== null && item.points > 0 ? 'rgba(72,187,120,0.15)' : item.points === 0 ? 'rgba(245,101,101,0.12)' : 'rgba(56,189,248,0.12)',
-                                                color: item.points !== null && item.points > 0 ? '#48bb78' : item.points === 0 ? '#f56565' : 'var(--color-primary)',
+                                                background: item.points !== null && item.points > 0 ? 'var(--lime-soft)' : item.points === 0 ? '#f1f5f9' : '#dde7ff',
+                                                color: item.points !== null && item.points > 0 ? '#3f6212' : item.points === 0 ? '#475569' : '#1e3a8a',
                                             }}>
-                                                {item.points !== null ? `+${item.points} pts` : 'Pending'}
+                                                {item.points !== null ? `+${item.points} pts` : 'Waiting for result'}
                                             </span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
@@ -573,7 +575,7 @@ export default function ProfilePage() {
                                             <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                                                 {item.predA}–{item.predB}
                                                 <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
-                                                    ({item.isFinished ? `${item.actualA}–${item.actualB}` : '?–?'})
+                                                    {item.isFinished ? `(final ${item.actualA}–${item.actualB})` : ''}
                                                 </span>
                                             </span>
                                         </div>
