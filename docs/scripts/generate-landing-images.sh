@@ -2,7 +2,7 @@
 # Generates the landing-page photos via the Ideogram v3 API.
 # Usage: IDEOGRAM_API_KEY must be set in the environment (never commit it).
 #   bash docs/scripts/generate-landing-images.sh   → writes PNGs to docs/scripts/out/
-# Then copy them to /public/img and point landing/media.ts at them.
+# Then save them (as .webp) to landing/img/ — landing/media.ts imports them from there.
 set -euo pipefail
 : "${IDEOGRAM_API_KEY:?Set IDEOGRAM_API_KEY in the environment first}"
 cd "$(dirname "$0")"

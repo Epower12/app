@@ -8,6 +8,11 @@
  * so the page looks right before the video loads or when motion is reduced.
  */
 
+import whyDebate from './img/why-debate.webp';
+import whyMatter from './img/why-matter.webp';
+import whyFriends from './img/why-friends.webp';
+import finale from './img/finale.webp';
+
 export interface Credit {
     author: string;
     /** Source page of the clip (Pexels asks for a link back). */
@@ -65,11 +70,12 @@ export const MEDIA = {
         credit: { author: 'Antoni Shkraba', href: 'https://www.pexels.com/video/a-tennis-player-serving-the-ball-4902773/' },
     },
 
-    whyDebate: { img: '/img/sport-crowd.png' },
-    whyMatter: { img: '/img/sport-scoreboard.png' },
-    whyFriends: { img: '/img/sport-floodlight.png' },
+    // Generated with Ideogram (docs/scripts/generate-landing-images.sh) and bundled from ./img.
+    whyDebate: { img: whyDebate.src },
+    whyMatter: { img: whyMatter.src },
+    whyFriends: { img: whyFriends.src },
 
-    finale: { img: '/img/cta-celebration.png' },
+    finale: { img: finale.src },
 } satisfies Record<string, Media>;
 
 /** Unique credits for every clip on the page, for the footer. */
