@@ -2,34 +2,41 @@
 
 import Link from 'next/link';
 import { FadeIn } from '../motion';
+import { MEDIA } from '../media';
 import { CookieSettingsLink } from '../../components/CookieConsent';
 
 export default function Footer() {
     return (
-        <footer className="ld-footer">
-            {/* Confetti atmosphere behind the closing line */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/img/cta-celebration.png" alt="" loading="lazy" className="ld-footer-bg" />
-            <div className="ld-footer-content">
-                <FadeIn y={40}>
-                    <h2 className="hero-heading ld-footer-title">Your move</h2>
-                </FadeIn>
-                <FadeIn delay={0.15} y={20}>
-                    <Link href="/signup" className="btn-pill">Start free — takes a minute</Link>
-                </FadeIn>
+        <>
+            <section className="ld-finale">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={MEDIA.finale.img} alt="" loading="lazy" className="ld-finale-bg" />
+                <div className="ld-wrap ld-finale-inner">
+                    <FadeIn y={30}>
+                        <h2 className="ld-display ld-finale-title">Think you know sport?<br />Prove it.</h2>
+                    </FadeIn>
+                    <FadeIn delay={0.15} y={20}>
+                        <p>It&apos;s free, you&apos;re set up in about a minute, and your friends are already arguing about the weekend.</p>
+                    </FadeIn>
+                    <FadeIn delay={0.25} y={20}>
+                        <Link href="/signup" className="ld-btn ld-btn-light">Start free</Link>
+                    </FadeIn>
+                </div>
+            </section>
 
-                <div className="ld-footer-legal">
+            <footer className="ld-footer">
+                <div className="ld-wrap ld-footer-inner">
                     <span>© SIA EGATRI · yourfriendleague.com</span>
-                    <div className="ld-footer-links">
+                    <nav className="ld-footer-links" aria-label="Footer">
                         <Link href="/news">News</Link>
                         <Link href="/blog">Blog</Link>
                         <Link href="/terms">Terms</Link>
                         <Link href="/privacy">Privacy</Link>
                         <Link href="/legal">Legal</Link>
                         <CookieSettingsLink />
-                    </div>
+                    </nav>
                 </div>
-            </div>
-        </footer>
+            </footer>
+        </>
     );
 }

@@ -4,30 +4,39 @@
 // The `/landing` route is suppressed from indexing via app/landing/layout.tsx
 // (server-component layout file that exports `metadata.robots = noindex`).
 //
-// Ported from the user-approved landing-3d prototype (Vite + Tailwind) into
-// plain CSS (landing.css) + framer-motion. Sections: Hero, Marquee, Game,
-// Scoring, Matchday, Footer.
+// Bright "matchday" design: purpose → why → how → sports → scoring → pricing → FAQ.
+// All photos/videos are configured in ./media.ts; styles live in landing.css.
 
 import { MotionConfig } from 'framer-motion';
+import Nav from './sections/Nav';
 import Hero from './sections/Hero';
-import Marquee from './sections/Marquee';
-import Game from './sections/Game';
+import Ticker from './sections/Ticker';
+import Why from './sections/Why';
+import HowItWorks from './sections/HowItWorks';
+import Sports from './sections/Sports';
 import Scoring from './sections/Scoring';
-import Matchday from './sections/Matchday';
+import Pricing from './sections/Pricing';
+import Faq from './sections/Faq';
 import Footer from './sections/Footer';
 import './landing.css';
 
 export default function LandingPage() {
     return (
         <MotionConfig reducedMotion="user">
-            <main className="ld-page">
-                <Hero />
-                <Marquee />
-                <Game />
-                <Scoring />
-                <Matchday />
+            <div className="ld-page">
+                <Nav />
+                <main>
+                    <Hero />
+                    <Ticker />
+                    <Why />
+                    <HowItWorks />
+                    <Sports />
+                    <Scoring />
+                    <Pricing />
+                    <Faq />
+                </main>
                 <Footer />
-            </main>
+            </div>
         </MotionConfig>
     );
 }
