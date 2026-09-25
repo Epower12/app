@@ -141,10 +141,23 @@ export interface TournamentParticipant {
     joinedAt: number;
 }
 
+export interface LeaderboardStats {
+    /** Finished matches this player predicted (i.e. that have been scored). */
+    scored: number;
+    /** Score/series tiers: exact result (5), winner + margin (3), winner (2), miss (0). */
+    exact: number;
+    winnerAndMargin: number;
+    winner: number;
+    miss: number;
+}
+
 export interface LeaderboardEntry {
     userId: string;
     username: string;
     totalPoints: number;
+    /** 1-based place; players level on points AND exact scores share a place. */
+    rank: number;
+    stats: LeaderboardStats;
     predictions: {
         matchId: string;
         teamA: string;

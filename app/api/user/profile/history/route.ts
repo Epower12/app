@@ -16,17 +16,19 @@ export async function GET() {
         const { rows: history } = await db.query(`
             SELECT 
                 p.id,
-                p.team_a_score as predA,
-                p.team_b_score as predB,
-                p.created_at as createdAt,
-                m.team_a as teamA,
-                m.team_b as teamB,
-                m.team_a_score as actualA,
-                m.team_b_score as actualB,
-                m.is_finished as isFinished,
-                m.scheduled_time as scheduledTime,
-                m.sport as sport,
-                t.name as tournamentName
+                -- Aliases must be quoted: Postgres lowercases unquoted ones
+                -- (predA -> preda), which left every history row blank.
+                p.team_a_score AS "predA",
+                p.team_b_score AS "predB",
+                p.created_at AS "createdAt",
+                m.team_a AS "teamA",
+                m.team_b AS "teamB",
+                m.team_a_score AS "actualA",
+                m.team_b_score AS "actualB",
+                m.is_finished AS "isFinished",
+                m.scheduled_time AS "scheduledTime",
+                m.sport AS "sport",
+                t.name AS "tournamentName"
             FROM predictions p
             JOIN matches m ON p.match_id = m.id
             JOIN tournaments t ON m.tournament_id = t.id

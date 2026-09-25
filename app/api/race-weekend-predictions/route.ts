@@ -72,7 +72,13 @@ export async function POST(request: Request) {
         const match = matchRows[0] as any;
         if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
         if (match.match_type !== 'race') return NextResponse.json({ error: 'Not a race match' }, { status: 400 });
-        if (hasMatchStarted(match.scheduled_time)) return NextResponse.json({ error: 'Cannot predict after the session has started' }, { status: 400 });
+        if (hasMatchStarted(match.scheduled_time)) return NextResponse.json({ error: 'This session has already started, so predictions are locked.' }, { status: 400 });
+
+        // A closed league is read-only: the page hides the buttons, but enforce it here too.
+        const { rows: activeRows } = await db.query('SELECT is_active FROM tournaments WHERE id = $1', [match.tournament_id]);
+        if (activeRows[0] && activeRows[0].is_active === false) {
+            return NextResponse.json({ error: 'This league has been closed by its organiser, so predictions are locked.' }, { status: 400 });
+        }
 
         // Ensure participant
         const { rows: partRows } = await db.query(

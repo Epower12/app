@@ -53,8 +53,8 @@ export async function GET() {
         // Get achievements
         const { rows: achievementData } = await db.query(`
             SELECT 
-                a.id, a.name, a.description, a.icon_url as iconUrl,
-                ua.unlocked_at as unlockedAt
+                a.id, a.name, a.description, a.icon_url AS "iconUrl",
+                ua.unlocked_at AS "unlockedAt"
             FROM user_achievements ua
             JOIN achievements a ON ua.achievement_id = a.id
             WHERE ua.user_id = $1

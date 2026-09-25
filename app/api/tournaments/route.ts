@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../../../lib/db';
 import { generateJoinCode } from '../../../lib/scoring';
 import { authOptions } from '../auth/[...nextauth]/route';
+import { ensureMigrations } from '../../../lib/migrations';
 
 // GET - List tournaments for current user
 export async function GET(request: Request) {
@@ -28,13 +29,34 @@ export async function GET(request: Request) {
             return NextResponse.json(tournament);
         }
 
-        // Get all tournaments user has joined
+        await ensureMigrations();
+
+        // Get all tournaments user has joined, plus the "what should I do next"
+        // numbers the league cards show: open matches, how many still need this
+        // user's prediction, the next kick-off, and (for organisers) matches that
+        // have started but still need a final result.
+        const now = Math.floor(Date.now() / 1000);
         const { rows: tournaments } = await db.query(`
-            SELECT t.* FROM tournaments t
+            SELECT t.*,
+                tp.joined_at,
+                (SELECT COUNT(*)::int FROM tournament_participants x WHERE x.tournament_id = t.id) AS member_count,
+                (SELECT COUNT(*)::int FROM matches m
+                    WHERE m.tournament_id = t.id AND NOT m.is_finished AND m.scheduled_time > $2) AS open_matches,
+                (SELECT COUNT(*)::int FROM matches m
+                    WHERE m.tournament_id = t.id AND NOT m.is_finished AND m.scheduled_time > $2
+                      AND NOT EXISTS (SELECT 1 FROM predictions p WHERE p.match_id = m.id AND p.user_id = $1)
+                      AND NOT EXISTS (SELECT 1 FROM race_weekend_predictions r WHERE r.match_id = m.id AND r.user_id = $1)
+                ) AS to_predict,
+                (SELECT MIN(m.scheduled_time) FROM matches m
+                    WHERE m.tournament_id = t.id AND NOT m.is_finished AND m.scheduled_time > $2) AS next_kickoff,
+                (SELECT COUNT(*)::int FROM matches m
+                    WHERE m.tournament_id = t.id AND NOT m.is_finished AND m.scheduled_time <= $2) AS awaiting_results,
+                (SELECT COUNT(*)::int FROM matches m WHERE m.tournament_id = t.id) AS total_matches
+            FROM tournaments t
             INNER JOIN tournament_participants tp ON t.id = tp.tournament_id
             WHERE tp.user_id = $1
             ORDER BY t.created_at DESC
-        `, [(session.user as any).id]);
+        `, [(session.user as any).id, now]);
 
         return NextResponse.json(tournaments);
     } catch (error) {

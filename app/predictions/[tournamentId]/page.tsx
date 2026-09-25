@@ -11,7 +11,8 @@ import SeriesPredictor from '../../components/SeriesPredictor';
 import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
 import type { MatchType, SeriesFormat, RaceSession, RaceBonusConfig } from '@/lib/types';
 import { defaultRaceBonusConfig, parseRaceBonusConfig } from '@/lib/types';
-import { scoringRulesLabel, calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
+import { calculateRaceWeekendPoints, raceSessionMultiplier } from '@/lib/scoring';
+import { formatKickoff, timeUntil, plural } from '@/lib/format';
 
 interface Match {
     id: string; team_a: string; team_b: string; scheduled_time: number;
@@ -53,14 +54,19 @@ function raceWeekendToForm(rp?: RaceWeekendPrediction): RaceWeekendFormState {
 }
 
 const SESSION_BADGE: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    qualifying:       { label: 'QUALI',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
-    sprint_qualifying:{ label: 'SQ',      color: '#818cf8', bg: 'rgba(129,140,248,0.12)', border: 'rgba(129,140,248,0.35)' },
-    sprint:           { label: 'SPRINT',  color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
-    race:             { label: 'RACE',    color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.35)' },
+    qualifying:       { label: 'QUALIFYING',        color: '#1e3a8a', bg: '#dde7ff', border: '#1e3a8a' },
+    sprint_qualifying:{ label: 'SPRINT QUALIFYING', color: '#4338ca', bg: '#e0e7ff', border: '#4338ca' },
+    sprint:           { label: 'SPRINT',            color: '#9a3412', bg: '#ffe2d4', border: '#9a3412' },
+    race:             { label: 'RACE',              color: '#0f172a', bg: '#c6f135', border: '#0f172a' },
 };
 
+const PODIUM_COLORS = ['#a16207', '#475569', '#9a3412'];
+
+/** What a series score counts: sets in tennis, maps in esports. */
+const seriesUnit = (sport: string) => (sport === 'Tennis' ? 'sets' : sport === 'Volleyball' ? 'sets' : 'maps');
+
 const avatarLetters = (name: string) => name.slice(0, 2).toUpperCase();
-const formatDT = (ts: number) => new Date(ts * 1000).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+const formatDT = formatKickoff;
 
 function TeamAvatar({ name, logo, side }: { name: string; logo?: string | null; side: 'a' | 'b' }) {
     const [broken, setBroken] = useState(false);
@@ -135,17 +141,23 @@ export default function PredictionsPage() {
         setStatsLoading(false);
     };
 
-    const submitScorePrediction = async (matchId: string, teamAScore: number, teamBScore: number) => {
-        await fetch('/api/predictions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ matchId, teamAScore, teamBScore }),
-        });
-        fetchData();
+    // Both submit helpers return an error message for the card to show, or null on success.
+    const submitScorePrediction = async (matchId: string, teamAScore: number, teamBScore: number): Promise<string | null> => {
+        try {
+            const res = await fetch('/api/predictions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matchId, teamAScore, teamBScore }),
+            });
+            fetchData();
+            if (!res.ok) return (await res.json().catch(() => ({})))?.error || 'Your prediction was not saved. Please try again.';
+            return null;
+        } catch { return 'Your prediction was not saved. Check your connection and try again.'; }
     };
 
-    const submitRaceWeekendPrediction = async (matchId: string, form: RaceWeekendFormState) => {
-        await fetch('/api/race-weekend-predictions', {
+    const submitRaceWeekendPrediction = async (matchId: string, form: RaceWeekendFormState): Promise<string | null> => {
+        try {
+        const res = await fetch('/api/race-weekend-predictions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -157,6 +169,9 @@ export default function PredictionsPage() {
             }),
         });
         fetchData();
+        if (!res.ok) return (await res.json().catch(() => ({})))?.error || 'Your prediction was not saved. Please try again.';
+        return null;
+        } catch { return 'Your prediction was not saved. Check your connection and try again.'; }
     };
 
     if (status === 'loading' || loading) {
@@ -185,51 +200,60 @@ export default function PredictionsPage() {
             <div className="container">
                 {/* Header */}
                 <SportHeader
-                    title="Predictions"
-                    subtitle={tournamentName || undefined}
+                    title={tournamentName || 'Matches'}
+                    subtitle="Pick the result of each match before it starts. You can change your pick until kick-off."
                     image={sportImage(tournamentSport)}
                     actions={
                         <>
-                            {isCreator && <Link href={`/manage/${tournamentId}`} className="btn btn-secondary">Manage</Link>}
-                            <Link href={`/leaderboard/${tournamentId}`} className="btn btn-secondary">Rankings</Link>
-                            <Link href="/tournaments" className="btn btn-secondary">All leagues</Link>
+                            <Link href={`/leaderboard/${tournamentId}`} className="btn btn-secondary">League table</Link>
+                            {isCreator && <Link href={`/manage/${tournamentId}`} className="btn btn-secondary">Manage league</Link>}
                         </>
                     }
                 />
 
-                {/* Scoring rules */}
-                <div className="scoring-rules-row">
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.03em' }}>SCORING</span>
-                    {hasRace ? (
-                        <>
-                            <span><strong style={{ color: '#fbbf24' }}>+5 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Exact P1</span></span>
-                            <span><strong style={{ color: '#94a3b8' }}>+3 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Exact P2</span></span>
-                            <span><strong style={{ color: '#b45309' }}>+2 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Exact P3</span></span>
-                            <span><strong style={{ color: '#818cf8' }}>+1 pt</strong> <span style={{ color: 'var(--text-muted)' }}>Driver in wrong slot</span></span>
-                        </>
-                    ) : (
-                        <>
-                            <span><strong style={{ color: '#4facfe' }}>+5 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Exact {hasSeries ? 'series' : 'score'}</span></span>
-                            <span><strong style={{ color: '#48bb78' }}>+3 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Winner &amp; margin</span></span>
-                            <span><strong style={{ color: '#667eea' }}>+2 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Correct winner</span></span>
-                            <span><strong style={{ color: 'var(--text-muted)' }}>+0 pts</strong> <span style={{ color: 'var(--text-muted)' }}>Wrong</span></span>
-                        </>
-                    )}
-                </div>
-
-                {/* Summary bar */}
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                    {[
-                        { label: 'Open', count: upcomingMatches.length, color: '#4facfe' },
-                        { label: 'Live', count: liveMatches.length, color: '#f5576c' },
-                        { label: 'Finished', count: finishedMatches.length, color: 'var(--text-muted)' },
-                    ].map(s => (
-                        <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-card)', border: `1px solid var(--border-color)`, padding: '0.4rem 0.85rem', borderRadius: '999px', fontSize: '0.85rem' }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, display: 'inline-block' }} />
-                            <span style={{ color: s.color, fontWeight: 700 }}>{s.count}</span>
-                            <span style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+                {!isTournamentActive && (
+                    <div className="next-step next-step-warn">
+                        <span className="next-step-icon" aria-hidden="true">🔒</span>
+                        <div>
+                            <h2>This league is closed</h2>
+                            <p>The organiser has closed it, so no new predictions can be made. Your points and the league table stay as they are.</p>
                         </div>
-                    ))}
+                    </div>
+                )}
+
+                {/* Progress: the one thing a player needs to know on arrival */}
+                {isTournamentActive && upcomingMatches.length > 0 && (() => {
+                    const predictedCount = upcomingMatches.filter(m => m.match_type === 'race' ? !!racePreds[m.id] : !!scorePreds[m.id]).length;
+                    const missing = upcomingMatches.length - predictedCount;
+                    const nextMissing = upcomingMatches.find(m => !(m.match_type === 'race' ? racePreds[m.id] : scorePreds[m.id]));
+                    return missing > 0 ? (
+                        <div className="next-step">
+                            <span className="next-step-icon" aria-hidden="true">🎯</span>
+                            <div>
+                                <h2>You&apos;ve predicted {predictedCount} of {plural(upcomingMatches.length, 'open match', 'open matches')}</h2>
+                                <p>
+                                    {plural(missing, 'match still needs', 'matches still need')} your pick
+                                    {nextMissing && timeUntil(nextMissing.scheduled_time) ? <>. The next one locks in <strong>{timeUntil(nextMissing.scheduled_time)}</strong>.</> : '.'}
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="next-step">
+                            <span className="next-step-icon" aria-hidden="true">✅</span>
+                            <div>
+                                <h2>All {plural(upcomingMatches.length, 'open match', 'open matches')} predicted</h2>
+                                <p>You can still change any pick until that match kicks off. Check the league table after the results come in.</p>
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                <ScoringLegend hasRace={hasRace} hasScore={matches.some(m => (m.match_type ?? 'score') === 'score')} hasSeries={hasSeries} sport={tournamentSport} />
+
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                    <span className="stat-pill"><strong>{upcomingMatches.length}</strong> open for predictions</span>
+                    <span className={`stat-pill ${liveMatches.length ? 'stat-pill-alert' : ''}`}><strong>{liveMatches.length}</strong> waiting for result</span>
+                    <span className="stat-pill"><strong>{finishedMatches.length}</strong> finished</span>
                 </div>
 
                 {matches.length === 0 && (
@@ -237,7 +261,8 @@ export default function PredictionsPage() {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src="/img/sport-floodlight.png" alt="" className="empty-state-img" />
                         <h3>No matches yet</h3>
-                        <p>The league organiser hasn't added any matches yet. Check back soon!</p>
+                        <p>{isCreator ? 'Add the first matches so your players can start predicting.' : "The organiser hasn't added any matches yet. Check back soon."}</p>
+                        {isCreator && <Link href={`/manage/${tournamentId}`} className="btn btn-primary">Add matches</Link>}
                     </div>
                 )}
 
@@ -245,14 +270,15 @@ export default function PredictionsPage() {
                     <div style={{ marginBottom: '2.5rem' }}>
                         <div className="match-section-header">
                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#4facfe', display: 'inline-block' }} />
-                            Open for Predictions
+                            Open for predictions
                         </div>
+                        <p className="section-help">You can make or change your pick until each match kicks off.</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {upcomingMatches.map(m => (
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
                                     onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
-                                    raceBonusConfig={raceBonusConfig}
+                                    raceBonusConfig={raceBonusConfig} sport={tournamentSport}
                                     locked={!isTournamentActive}
                                     isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
@@ -264,14 +290,15 @@ export default function PredictionsPage() {
                 {liveMatches.length > 0 && (
                     <div style={{ marginBottom: '2.5rem' }}>
                         <div className="match-section-header">
-                            <span className="match-live-dot" /> Live / Locked
+                            <span className="match-live-dot" /> Started: waiting for the result
                         </div>
+                        <p className="section-help">Picks are locked. Your points appear here once the organiser enters the final score.</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {liveMatches.map(m => (
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
                                     onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
-                                    raceBonusConfig={raceBonusConfig}
+                                    raceBonusConfig={raceBonusConfig} sport={tournamentSport}
                                     locked isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
                             ))}
@@ -290,7 +317,7 @@ export default function PredictionsPage() {
                                 <PredCard key={m.id} match={m} tournamentId={tournamentId}
                                     scorePrediction={scorePreds[m.id]} racePrediction={racePreds[m.id]}
                                     onSubmitScore={submitScorePrediction} onSubmitRaceWeekend={submitRaceWeekendPrediction}
-                                    raceBonusConfig={raceBonusConfig}
+                                    raceBonusConfig={raceBonusConfig} sport={tournamentSport}
                                     locked showResult isPremium={isPremium} onLoadStats={loadStats}
                                     stats={statsMap[m.id]} statsOpen={openStatsId === m.id} statsLoading={statsLoading} />
                             ))}
@@ -305,17 +332,17 @@ export default function PredictionsPage() {
 // ─── PredCard ────────────────────────────────────────────────────────────────
 
 function PredCard({
-    match, tournamentId,
+    match, tournamentId, sport = '',
     scorePrediction, racePrediction,
     onSubmitScore, onSubmitRaceWeekend, raceBonusConfig,
     locked = false, showResult = false,
     isPremium = false, onLoadStats,
     stats, statsOpen, statsLoading,
 }: {
-    match: Match; tournamentId: string;
+    match: Match; tournamentId: string; sport?: string;
     scorePrediction?: ScorePrediction; racePrediction?: RaceWeekendPrediction;
-    onSubmitScore: (id: string, a: number, b: number) => void;
-    onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => void;
+    onSubmitScore: (id: string, a: number, b: number) => Promise<string | null>;
+    onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => Promise<string | null>;
     raceBonusConfig?: RaceBonusConfig;
     locked?: boolean; showResult?: boolean;
     isPremium?: boolean; onLoadStats?: (id: string) => void;
@@ -328,7 +355,7 @@ function PredCard({
             onSubmitRaceWeekend={onSubmitRaceWeekend} raceBonusConfig={raceBonusConfig} locked={locked} showResult={showResult} />;
     }
 
-    return <ScoreCard match={match} tournamentId={tournamentId}
+    return <ScoreCard match={match} tournamentId={tournamentId} sport={sport}
         scorePrediction={scorePrediction} onSubmitScore={onSubmitScore}
         locked={locked} showResult={showResult}
         isPremium={isPremium} onLoadStats={onLoadStats}
@@ -339,11 +366,12 @@ function PredCard({
 
 function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, raceBonusConfig, locked, showResult }: {
     match: Match; tournamentId: string; racePrediction?: RaceWeekendPrediction;
-    onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => void;
+    onSubmitRaceWeekend: (id: string, form: RaceWeekendFormState) => Promise<string | null>;
     raceBonusConfig?: RaceBonusConfig;
     locked?: boolean; showResult?: boolean;
 }) {
     const [editing, setEditing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [form, setForm] = useState<RaceWeekendFormState>(raceWeekendToForm(racePrediction));
     const [saving, setSaving] = useState(false);
 
@@ -353,15 +381,14 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, ra
 
     const sessionBadge = match.race_session ? SESSION_BADGE[match.race_session] : null;
 
-    const timeLeft = Math.floor((match.scheduled_time * 1000 - Date.now()) / 1000);
-    const hours = Math.floor(timeLeft / 3600);
-    const minutes = Math.floor((timeLeft % 3600) / 60);
+    const left = !locked ? timeUntil(match.scheduled_time) : null;
 
     const handleSave = async () => {
         if (form.picks.length < 3) return;
         setSaving(true);
-        await onSubmitRaceWeekend(match.id, form);
-        setEditing(false);
+        const err = await onSubmitRaceWeekend(match.id, form);
+        setError(err);
+        if (!err) setEditing(false);
         setSaving(false);
     };
 
@@ -411,24 +438,27 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, ra
                         <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{match.team_a}</span>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{match.team_b || 'Grand Prix'}</span>
+                    {!showResult && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            Predict the Top 10 finishing order{match.race_session === 'race' ? ', plus the bonus questions' : ''}. At least the first 3 places are needed.
+                        </span>
+                    )}
                 </div>
 
                 {showResult && match.top10_result ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'flex-end', maxWidth: 200 }}>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>TOP 3</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>RESULT: TOP 3</span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
                             {match.top10_result.slice(0, 3).join(' · ')}
                         </span>
                     </div>
-                ) : !locked && (
-                    <span className="match-vs-badge">VS</span>
-                )}
+                ) : null}
             </div>
 
             {/* Result points overlay */}
             {result && (
                 <div style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 800, fontSize: '1rem', color: result.total >= 10 ? '#fbbf24' : result.total >= 5 ? '#38bdf8' : result.total > 0 ? '#818cf8' : 'var(--text-muted)' }}>
+                    <span style={{ fontWeight: 800, fontSize: '1rem', color: result.total > 0 ? '#3f6212' : 'var(--text-muted)' }}>
                         +{result.total} pts
                     </span>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -439,7 +469,12 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, ra
 
             {/* Footer */}
             <div className="match-card-footer">
-                <span className="match-time">{formatDT(match.scheduled_time)}</span>
+                <span className="match-time">
+                    {formatDT(match.scheduled_time)}
+                    {left && <span className="status-chip status-chip-upcoming" style={{ marginLeft: '0.5rem' }}>Locks in {left}</span>}
+                </span>
+
+                {error && <div className="auth-error" role="alert" style={{ width: '100%' }}>{error}</div>}
 
                 {editing && !locked ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', paddingTop: '0.5rem' }}>
@@ -461,10 +496,10 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, ra
                     </div>
                 ) : racePrediction && !editing ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>My picks:</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Your picks:</span>
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                             {racePrediction.picks.slice(0, 3).map((driver, i) => (
-                                <span key={driver} style={{ fontSize: '0.8rem', fontWeight: 700, color: ['#fbbf24', '#94a3b8', '#b45309'][i] }}>
+                                <span key={driver} style={{ fontSize: '0.8rem', fontWeight: 700, color: PODIUM_COLORS[i] }}>
                                     P{i + 1}: {driver}
                                 </span>
                             ))}
@@ -475,9 +510,9 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, ra
                         {!locked && <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>Edit</button>}
                     </div>
                 ) : !locked ? (
-                    <button className="btn btn-primary" onClick={() => setEditing(true)}>Predict this weekend</button>
+                    <button className="btn btn-primary" onClick={() => setEditing(true)}>Make prediction</button>
                 ) : (
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No prediction made</span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>You didn&apos;t predict this one</span>
                 )}
             </div>
         </div>
@@ -486,10 +521,10 @@ function RaceCard({ match, tournamentId, racePrediction, onSubmitRaceWeekend, ra
 
 // ─── ScoreCard (handles both 'score' and 'series') ────────────────────────────
 
-function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked = false, showResult = false, isPremium = false, onLoadStats, stats, statsOpen, statsLoading }: {
-    match: Match; tournamentId: string;
+function ScoreCard({ match, tournamentId, sport = '', scorePrediction, onSubmitScore, locked = false, showResult = false, isPremium = false, onLoadStats, stats, statsOpen, statsLoading }: {
+    match: Match; tournamentId: string; sport?: string;
     scorePrediction?: ScorePrediction;
-    onSubmitScore: (id: string, a: number, b: number) => void;
+    onSubmitScore: (id: string, a: number, b: number) => Promise<string | null>;
     locked?: boolean; showResult?: boolean;
     isPremium?: boolean; onLoadStats?: (id: string) => void;
     stats?: MatchStats; statsOpen?: boolean; statsLoading?: boolean;
@@ -501,6 +536,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
     const [editing, setEditing] = useState(false);
     const [scores, setScores] = useState({ a: scorePrediction?.team_a_score ?? 0, b: scorePrediction?.team_b_score ?? 0 });
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const isTied = scores.a === scores.b;
     const playoffTieBlocked = match.is_playoff && isTied;
@@ -516,16 +552,17 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
         : null;
 
     const urgencyStyle: Record<string, React.CSSProperties> = {
-        critical: { background: 'rgba(245,87,108,0.15)', color: '#f5576c', border: '1px solid rgba(245,87,108,0.4)', animation: 'urgentPulse 1.2s ease-in-out infinite' },
-        warning:  { background: 'rgba(249,115,22,0.12)', color: '#f97316', border: '1px solid rgba(249,115,22,0.35)' },
-        soon:     { background: 'rgba(251,191,36,0.1)',  color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' },
-        normal:   { background: 'rgba(56,189,248,0.08)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' },
+        critical: { background: '#fee2e2', color: '#b91c1c', border: '1.5px solid #b91c1c' },
+        warning:  { background: '#ffedd5', color: '#9a3412', border: '1.5px solid #9a3412' },
+        soon:     { background: '#fef9c3', color: '#854d0e', border: '1.5px solid #ca8a04' },
+        normal:   { background: '#dde7ff', color: '#1e3a8a', border: '1.5px solid transparent' },
     };
 
     const handleSave = async () => {
         setSaving(true);
-        await onSubmitScore(match.id, scores.a, scores.b);
-        setEditing(false);
+        const err = await onSubmitScore(match.id, scores.a, scores.b);
+        setError(err);
+        if (!err) setEditing(false);
         setSaving(false);
     };
 
@@ -533,14 +570,14 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
         if (!showResult || match.team_a_score === null || !scorePrediction) return null;
         const predA = scorePrediction.team_a_score, predB = scorePrediction.team_b_score;
         const actualA = match.team_a_score, actualB = match.team_b_score!;
-        if (predA === actualA && predB === actualB) return { pts: 5, label: 'Exact!', color: '#4facfe' };
+        if (predA === actualA && predB === actualB) return { pts: 5, label: 'Exact score!', color: '#3f6212' };
         const predW = predA > predB ? 'A' : predA < predB ? 'B' : 'draw';
         const actualW = actualA > actualB ? 'A' : actualA < actualB ? 'B' : 'draw';
         const correctWinner = predW === actualW;
         const correctGap = Math.abs(predA - predB) === Math.abs(actualA - actualB);
-        if (correctWinner && correctGap) return { pts: 3, label: 'Winner + margin', color: '#48bb78' };
-        if (correctWinner) return { pts: 2, label: 'Winner', color: '#667eea' };
-        return { pts: 0, label: 'Wrong', color: 'var(--text-muted)' };
+        if (correctWinner && correctGap) return { pts: 3, label: 'Right winner + margin', color: '#15803d' };
+        if (correctWinner) return { pts: 2, label: 'Right winner', color: '#1e3a8a' };
+        return { pts: 0, label: 'No points', color: 'var(--text-muted)' };
     };
     const result = resultPoints();
 
@@ -549,13 +586,8 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
             {/* Series format badge */}
             {isSeries && (
                 <div style={{ padding: '0.5rem 1rem 0', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <span style={{
-                        fontSize: '0.68rem', fontWeight: 800, padding: '0.15rem 0.55rem',
-                        borderRadius: '999px', background: 'rgba(129,140,248,0.12)',
-                        color: '#818cf8', border: '1px solid rgba(129,140,248,0.35)',
-                        letterSpacing: '0.06em',
-                    }}>{seriesFormat}</span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Map wins</span>
+                    <span className="status-chip status-chip-upcoming">{seriesFormat.replace('BO', 'Best of ')}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Predict how many {seriesUnit(sport)} each side wins</span>
                 </div>
             )}
 
@@ -567,7 +599,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
                     {match.is_playoff && !isSeries && (
-                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '999px', background: 'rgba(129,140,248,0.15)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.35)', letterSpacing: '0.04em' }}>⚔️ KNOCKOUT</span>
+                        <span className="status-chip status-chip-live" title="Knockout match: someone has to win, so a draw can't be predicted">⚔️ Knockout</span>
                     )}
                     {showResult && match.team_a_score !== null ? (
                         <div className="score-result">{match.team_a_score} – {match.team_b_score}</div>
@@ -575,7 +607,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                         <span className="match-vs-badge">VS</span>
                     )}
                     {result && (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: result.color }}>{result.label} +{result.pts}pts</span>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: result.color }}>{result.label} +{result.pts} pts</span>
                     )}
                 </div>
                 <div className="match-team" style={{ justifyContent: 'flex-end' }}>
@@ -587,25 +619,25 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
             {/* Premium stats */}
             {isPremium && !match.is_finished && !isSeries && (
                 <div style={{ padding: '0 1rem 0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button style={{ fontSize: '0.75rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-                        onClick={() => onLoadStats?.(match.id)}>
-                        {statsOpen ? 'Hide' : 'Community predictions'}
+                    <button style={{ fontSize: '0.78rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, textDecoration: 'underline' }}
+                        onClick={() => onLoadStats?.(match.id)} aria-expanded={!!statsOpen}>
+                        {statsOpen ? 'Hide community picks' : 'See what everyone predicted (Premium)'}
                     </button>
                 </div>
             )}
             {isPremium && statsOpen && stats && (
-                <div style={{ margin: '0 1rem 0.75rem', padding: '0.85rem', background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ margin: '0 1rem 0.75rem', padding: '0.85rem', background: 'var(--bg-tertiary)', border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
                     {statsLoading && !stats ? <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0 }}>Loading…</p> : stats.total > 0 ? (
                         <>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.6rem', fontWeight: 600 }}>📊 COMMUNITY — {stats.total} prediction{stats.total !== 1 ? 's' : ''}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.6rem', fontWeight: 700 }}>📊 {stats.total} PREDICTION{stats.total !== 1 ? 'S' : ''}: {stats.teamA} win · draw · {stats.teamB} win</div>
                             <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.78rem', fontWeight: 700 }}>
-                                <span style={{ color: '#38bdf8', minWidth: 28 }}>{stats.homeWin}%</span>
+                                <span style={{ color: '#1e3a8a', minWidth: 28 }}>{stats.homeWin}%</span>
                                 <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'var(--bg-tertiary)', overflow: 'hidden', display: 'flex' }}>
-                                    <div style={{ width: `${stats.homeWin}%`, background: '#38bdf8', transition: 'width 0.4s' }} />
-                                    <div style={{ width: `${stats.draw}%`, background: '#818cf8', transition: 'width 0.4s' }} />
-                                    <div style={{ width: `${stats.awayWin}%`, background: '#f97316', transition: 'width 0.4s' }} />
+                                    <div style={{ width: `${stats.homeWin}%`, background: '#2f6bff', transition: 'width 0.4s' }} />
+                                    <div style={{ width: `${stats.draw}%`, background: '#94a3b8', transition: 'width 0.4s' }} />
+                                    <div style={{ width: `${stats.awayWin}%`, background: '#ff5a1f', transition: 'width 0.4s' }} />
                                 </div>
-                                <span style={{ color: '#f97316', minWidth: 28, textAlign: 'right' }}>{stats.awayWin}%</span>
+                                <span style={{ color: '#9a3412', minWidth: 28, textAlign: 'right' }}>{stats.awayWin}%</span>
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                 {stats.topPredictions.map(p => (
@@ -622,7 +654,7 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
             {/* Countdown */}
             {countdownUrgency && countdownUrgency !== 'normal' && (
                 <div style={{ margin: '0 1rem 0.6rem', padding: '0.45rem 0.85rem', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', ...urgencyStyle[countdownUrgency] }}>
-                    {countdownUrgency === 'critical' ? `Closes in ${minutes}m — predict now!` : countdownUrgency === 'warning' ? `${hours}h ${minutes}m left` : `Closes in ${hours}h ${minutes}m`}
+                    {countdownUrgency === 'critical' ? `Locks in ${minutes}m. Predict now!` : `Locks in ${hours}h ${minutes}m`}
                 </div>
             )}
 
@@ -631,12 +663,12 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <span className="match-time">{formatDT(match.scheduled_time)}</span>
                     {countdownUrgency === 'normal' && (
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: '999px', ...urgencyStyle.normal }}>
-                            {hours}h {minutes}m
-                        </span>
+                        <span className="status-chip status-chip-upcoming">Locks in {timeUntil(match.scheduled_time)}</span>
                     )}
-                    {locked && !showResult && <span style={{ fontSize: '0.8rem', color: '#f5576c', fontWeight: 600 }}>Locked</span>}
+                    {locked && !showResult && <span className="status-chip status-chip-live">Locked</span>}
                 </div>
+
+                {error && <div className="auth-error" role="alert" style={{ width: '100%' }}>{error}</div>}
 
                 {editing && !locked ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: isSeries ? 'stretch' : 'flex-end', width: '100%' }}>
@@ -656,30 +688,92 @@ function ScoreCard({ match, tournamentId, scorePrediction, onSubmitScore, locked
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {playoffTieBlocked && (
+                                <span style={{ fontSize: '0.8rem', color: '#9a3412', fontWeight: 600 }}>Knockout match: pick a winner, a draw isn&apos;t possible.</span>
+                            )}
                             <button className="btn btn-success btn-sm" onClick={handleSave}
-                                disabled={saving || playoffTieBlocked || (isSeries && scores.a === 0 && scores.b === 0)}
-                                title={playoffTieBlocked ? 'Tied scores not allowed in knockout matches' : undefined}>
-                                {saving ? '…' : 'Save'}
+                                disabled={saving || playoffTieBlocked || (isSeries && scores.a === 0 && scores.b === 0)}>
+                                {saving ? 'Saving…' : 'Save prediction'}
                             </button>
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
                         </div>
                     </div>
                 ) : scorePrediction && !editing ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>My pick:</span>
-                        <span style={{ fontWeight: 700, color: '#667eea', fontSize: '0.95rem' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Your pick:</span>
+                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
                             {scorePrediction.team_a_score} – {scorePrediction.team_b_score}
                         </span>
                         {!locked && <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>Edit</button>}
                     </div>
                 ) : !locked ? (
                     <button className="btn btn-primary" onClick={() => setEditing(true)} style={{ minWidth: 130 }}>
-                        {isSeries ? 'Pick result' : 'Make prediction'}
+                        Make prediction
                     </button>
                 ) : (
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No prediction made</span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>You didn&apos;t predict this one</span>
                 )}
             </div>
         </div>
+    );
+}
+
+// ─── ScoringLegend ───────────────────────────────────────────────────────────
+// The real rules for this league's match types (see lib/scoring.ts), shown up
+// front so players know how points work before they pick.
+
+function ScoringLegend({ hasRace, hasScore, hasSeries, sport }: { hasRace: boolean; hasScore: boolean; hasSeries: boolean; sport: string }) {
+    const [open, setOpen] = useState(false);
+    const unit = seriesUnit(sport);
+    // In a best-of series, the right winner with the right margin always means the
+    // exact result too (e.g. 2–0 / 2–1), so the +3 tier only exists for score matches.
+    const onlySeries = hasSeries && !hasScore;
+    const tiers = [
+        { pts: '+5', label: onlySeries ? 'Exact result' : 'Exact score', example: onlySeries ? `You said 2–1 in ${unit}, it ended 2–1` : 'You said 2–1, it ended 2–1' , bg: '#c6f135' },
+        ...(onlySeries ? [] : [{ pts: '+3', label: 'Right winner and margin', example: 'You said 3–2, it ended 2–1 (won by one)', bg: '#ffd2bf' }]),
+        { pts: '+2', label: 'Right winner', example: onlySeries ? `You said 2–0, it ended 2–1` : 'You said 1–0, it ended 3–1', bg: '#dde7ff' },
+        { pts: '0', label: 'Wrong winner', example: onlySeries ? 'You said 2–0, it ended 1–2' : 'You said 2–0, it ended 0–1', bg: '#ffffff' },
+    ];
+    return (
+        <section aria-labelledby="scoring-title" style={{ background: '#fff', border: '1.5px solid var(--border-color)', borderRadius: 16, padding: '0.9rem 1.1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <h2 id="scoring-title" style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0 }}>How points work</h2>
+                <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+                    style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}>
+                    {open ? 'Hide examples' : 'Show examples'}
+                </button>
+            </div>
+            {(hasScore || hasSeries || !hasRace) ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem', marginTop: '0.75rem' }}>
+                    {tiers.map(t => (
+                        <div key={t.label} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', padding: '0.55rem 0.7rem', borderRadius: 12, border: '1.5px solid var(--ink)', background: t.bg }}>
+                            <span style={{ fontWeight: 900, fontSize: '1.15rem' }}>{t.pts}</span>
+                            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{t.label}</span>
+                            {open && <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{t.example}</span>}
+                        </div>
+                    ))}
+                </div>
+            ) : null}
+            {hasRace && (
+                <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    <p style={{ margin: 0 }}>
+                        <strong style={{ color: 'var(--ink)' }}>Formula 1: </strong>
+                        each driver in your Top 10 scores <strong>5</strong> in the exact place, <strong>3</strong> one place off,
+                        {' '}<strong>2</strong> two places off, <strong>1</strong> if they finish anywhere in the Top 10.
+                    </p>
+                    {open && (
+                        <p style={{ margin: '0.4rem 0 0' }}>
+                            Race bonuses (main race only): winner +3, exact podium +5 (right three drivers in any order +3),
+                            pole +3, fastest lap +3, first retirement +2, safety car +2, plus any extra questions your organiser switched on.
+                            Qualifying scores the order only (3 exact, 1 one place off). Sprints count half; the season finale counts double.
+                        </p>
+                    )}
+                </div>
+            )}
+            <p style={{ margin: '0.6rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {(hasScore || hasSeries) && <>A score or series match gives the single highest rule you hit; those don&apos;t add up. </>}
+                Everyone scores the same way, Premium or not.
+            </p>
+        </section>
     );
 }

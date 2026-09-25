@@ -23,7 +23,7 @@ export async function POST(request: Request) {
         const tournament = tournamentRows[0];
 
         if (!tournament) {
-            return NextResponse.json({ error: 'Invalid or inactive tournament code' }, { status: 404 });
+            return NextResponse.json({ error: 'No open league uses that code. Check it with the organiser, or the league may have been closed.' }, { status: 404 });
         }
 
         // Check if already joined
@@ -32,10 +32,19 @@ export async function POST(request: Request) {
 
         if (existing) {
             return NextResponse.json({
-                error: 'Already joined this tournament',
+                error: "You're already in this league.",
                 tournamentId: (tournament as any).id,
                 tournamentName: (tournament as any).name,
             }, { status: 409 });
+        }
+
+        // Respect the organiser's player limit (0 = unlimited).
+        const maxPlayers = Number(tournament.max_participants) || 0;
+        if (maxPlayers > 0) {
+            const { rows: countRows } = await db.query('SELECT COUNT(*)::int AS n FROM tournament_participants WHERE tournament_id = $1', [tournament.id]);
+            if (countRows[0].n >= maxPlayers) {
+                return NextResponse.json({ error: `This league is full (${maxPlayers} players). Ask the organiser to raise the limit.` }, { status: 403 });
+            }
         }
 
         // Add participant

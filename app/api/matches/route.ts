@@ -32,8 +32,13 @@ export async function GET(request: Request) {
 
         await ensureMigrations();
 
+        // prediction_count: how many players have a pick in (numbers only, never
+        // the picks), so organisers can see engagement per match.
         const { rows: matches } = await db.query(
-            'SELECT * FROM matches WHERE tournament_id = $1 ORDER BY scheduled_time ASC',
+            `SELECT m.*,
+                ((SELECT COUNT(*) FROM predictions p WHERE p.match_id = m.id)
+                 + (SELECT COUNT(*) FROM race_weekend_predictions r WHERE r.match_id = m.id))::int AS prediction_count
+             FROM matches m WHERE m.tournament_id = $1 ORDER BY m.scheduled_time ASC`,
             [tournamentId]
         );
 

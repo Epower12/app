@@ -62,7 +62,13 @@ export async function POST(request: Request) {
 
         // Check if match has started
         if (hasMatchStarted(match.scheduled_time)) {
-            return NextResponse.json({ error: 'Cannot predict after match has started' }, { status: 400 });
+            return NextResponse.json({ error: 'This match has already started, so predictions are locked.' }, { status: 400 });
+        }
+
+        // A closed league is read-only: the page hides the buttons, but enforce it here too.
+        const { rows: activeRows } = await db.query('SELECT is_active FROM tournaments WHERE id = $1', [match.tournament_id]);
+        if (activeRows[0] && activeRows[0].is_active === false) {
+            return NextResponse.json({ error: 'This league has been closed by its organiser, so predictions are locked.' }, { status: 400 });
         }
 
         // Verify user is participant or auto-join if open

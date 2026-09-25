@@ -1,5 +1,6 @@
 import db from './db';
 import { calculatePoints } from './scoring';
+import { computeStandings } from './standings';
 
 /**
  * Calculate streak and accuracy for a user
@@ -74,37 +75,16 @@ export async function getUserLeagues(userId: string) {
         WHERE tp.user_id = $1
     `, [userId]);
 
+    // Same numbers as the league table (score, series and race points, real
+    // shared-place ranks). The old version hard-coded rank 1 and ignored races.
     const leaguesWithStats = await Promise.all(leagues.map(async (league) => {
-        const { rows: predictions } = await db.query(`
-            SELECT 
-                p.team_a_score as pred_a,
-                p.team_b_score as pred_b,
-                m.team_a_score as actual_a,
-                m.team_b_score as actual_b
-            FROM predictions p
-            JOIN matches m ON p.match_id = m.id
-            WHERE p.user_id = $1 AND m.tournament_id = $2 AND m.is_finished = true
-        `, [userId, league.id]);
-
-        let totalPoints = 0;
-        predictions.forEach(p => {
-            totalPoints += calculatePoints(
-                { teamAScore: Number(p.pred_a || 0), teamBScore: Number(p.pred_b || 0) },
-                { teamAScore: Number(p.actual_a || 0), teamBScore: Number(p.actual_b || 0) }
-            );
-        });
-
-        const { rows: participants } = await db.query(`
-            SELECT user_id FROM tournament_participants WHERE tournament_id = $1
-        `, [league.id]);
-
-        const rank = 1; // Placeholder
-
+        const standings = await computeStandings(league.id, userId);
+        const me = standings.find(e => e.userId === userId);
         return {
             ...league,
-            totalPoints,
-            participantCount: participants.length,
-            rank
+            totalPoints: me?.totalPoints ?? 0,
+            participantCount: standings.length,
+            rank: me?.rank ?? standings.length,
         };
     }));
 

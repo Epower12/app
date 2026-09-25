@@ -8,8 +8,8 @@ const connectionString = process.env.DATABASE_URL;
 // can complete its prerendering phase without runtime secrets.
 const pool = new Pool({
   connectionString: connectionString || 'postgresql://dummy:dummy@localhost/dummy',
-  // Neon requires SSL. This ensures it works locally and in production.
-  ssl: !!connectionString,
+  // Neon requires SSL; a local Postgres (localhost / 127.0.0.1) usually has none.
+  ssl: !!connectionString && !/@(localhost|127\.0\.0\.1)[:/]/.test(connectionString),
   max: 10,                       // Neon free tier has a tight connection cap
   idleTimeoutMillis: 10_000,     // Close idle conns before Neon kills them (~30s server-side)
   connectionTimeoutMillis: 15_000, // Cold-start Neon can take 5-10s to spin up the compute

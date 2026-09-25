@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:init": "node scripts/init_db.js",
+    "db:init": "node scripts/init_pg.js",
     "db:verify": "node scripts/verify_db.js",
     "test": "vitest run",
     "test:watch": "vitest"

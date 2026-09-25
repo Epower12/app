@@ -2,23 +2,16 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import SportHeader, { sportImage } from '../../components/SportHeader';
-import type { MatchType, SeriesFormat, RaceSession } from '@/lib/types';
+import type { MatchType, SeriesFormat, RaceSession, LeaderboardStats } from '@/lib/types';
+import { plural } from '@/lib/format';
 
 interface RaceWeekendEntry {
     picks: string[];
     actual: string[] | null;
-    pole: { pick: string | null; actual: string | null };
-    fastestLap: { pick: string | null; actual: string | null };
-    firstRetirement: { pick: string | null; actual: string | null };
-    safetyCar: { pick: boolean | null; actual: boolean | null };
-    positionsGained: { pick: string | null; actual: string | null };
-    positionsLost: { pick: string | null; actual: string | null };
-    winningMargin: { pick: string | null; actual: string | null };
-    retirements: { pick: string | null; actual: string | null };
     multiplier: number;
     breakdown: { label: string; points: number }[];
 }
@@ -29,131 +22,67 @@ interface PredictionEntry {
     predictedScoreA?: number; predictedScoreB?: number;
     actualScoreA?: number | null; actualScoreB?: number | null;
     raceWeekend?: RaceWeekendEntry;
-    points: number; pointsBreakdown?: string;
+    points: number;
 }
 
 interface LeaderboardEntry {
     userId: string; username: string; totalPoints: number;
+    rank: number; stats: LeaderboardStats;
     predictions: PredictionEntry[];
 }
 
-const SESSION_BADGE: Record<string, { label: string; color: string }> = {
-    qualifying:        { label: 'QUALI',  color: '#38bdf8' },
-    sprint_qualifying: { label: 'SQ',     color: '#818cf8' },
-    sprint:            { label: 'SPRINT', color: '#fb923c' },
-    race:              { label: 'RACE',   color: '#fbbf24' },
+const SESSION_LABEL: Record<string, string> = {
+    qualifying: 'Qualifying', sprint_qualifying: 'Sprint qualifying', sprint: 'Sprint', race: 'Race',
 };
 
-// Scoring badge — visual chip per points tier
-function ScoreBadge({ pts, matchType }: { pts: number; matchType: MatchType }) {
-    if (matchType === 'race') {
-        if (pts >= 10)      return <span style={badge('#fbbf24', 'rgba(251,191,36,0.15)')}>Perfect</span>;
-        if (pts >= 8)       return <span style={badge('#fbbf24', 'rgba(251,191,36,0.12)')}>Excellent</span>;
-        if (pts >= 5)       return <span style={badge('#38bdf8', 'rgba(56,189,248,0.12)')}>Good</span>;
-        if (pts >= 1)       return <span style={badge('#818cf8', 'rgba(129,140,248,0.12)')}>Partial</span>;
-        return               <span style={badge('var(--text-muted)', 'var(--bg-tertiary)')}>Miss</span>;
-    }
-    if (pts === 5) return <span style={badge('#4facfe', 'rgba(79,172,254,0.12)')}>Exact</span>;
-    if (pts === 3) return <span style={badge('#48bb78', 'rgba(72,187,120,0.12)')}>Winner + margin</span>;
-    if (pts === 2) return <span style={badge('#667eea', 'rgba(102,126,234,0.12)')}>Winner</span>;
-    return                 <span style={badge('var(--text-muted)', 'var(--bg-tertiary)')}>Miss</span>;
+const ordinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+function TierChip({ pts }: { pts: number }) {
+    if (pts === 5) return <span className="status-chip status-chip-done">Exact +5</span>;
+    if (pts === 3) return <span className="status-chip" style={{ background: '#ffe2d4', color: '#9a3412' }}>Winner + margin +3</span>;
+    if (pts === 2) return <span className="status-chip status-chip-upcoming">Winner +2</span>;
+    return <span className="status-chip status-chip-muted">No points</span>;
 }
 
-function badge(color: string, bg: string): React.CSSProperties {
-    return { fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '999px', background: bg, color, border: `1px solid ${color}22`, whiteSpace: 'nowrap' };
-}
-
-// Per-prediction breakdown row
-function PredRow({ p }: { p: PredictionEntry }) {
+/** One match inside a player's expanded details. */
+function PredictionLine({ p }: { p: PredictionEntry }) {
     if (p.matchType === 'race') {
         const rw = p.raceWeekend;
-        const sessionBadge = p.raceSession ? SESSION_BADGE[p.raceSession] : null;
-        const podiumColors = ['#fbbf24', '#94a3b8', '#b45309'];
+        const scored = !!rw?.actual;
         return (
-            <div className="lb-pred-row" style={{ flexDirection: 'column', gap: '0.4rem', alignItems: 'stretch' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                        {sessionBadge && (
-                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: sessionBadge.color, letterSpacing: '0.04em' }}>
-                                {sessionBadge.label}
-                            </span>
-                        )}
-                        {rw && rw.multiplier !== 1 && (
-                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f97316' }}>×{rw.multiplier}</span>
-                        )}
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{p.teamA}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                        <ScoreBadge pts={p.points} matchType="race" />
-                        <span style={{ fontWeight: 800, color: p.points >= 8 ? '#fbbf24' : p.points >= 3 ? '#38bdf8' : p.points > 0 ? '#818cf8' : 'var(--text-muted)', fontSize: '0.85rem' }}>
-                            +{p.points}
-                        </span>
-                    </div>
+            <li className="lb-detail">
+                <div className="lb-detail-main">
+                    <strong>{p.teamA}</strong>
+                    {p.raceSession && <span className="status-chip status-chip-muted">{SESSION_LABEL[p.raceSession]}</span>}
+                    {rw && rw.multiplier !== 1 && <span className="status-chip status-chip-live">×{rw.multiplier}</span>}
                 </div>
-
-                {rw && rw.picks.length > 0 && (
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {rw.picks.slice(0, 3).map((driver, i) => {
-                            const exact = rw.actual?.[i] === driver;
-                            const inTop10 = !exact && rw.actual?.includes(driver);
-                            return (
-                                <div key={driver} style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', fontSize: '0.75rem' }}>
-                                    <span style={{ color: podiumColors[i], fontWeight: 800 }}>P{i + 1}</span>
-                                    <span style={{ color: exact ? podiumColors[i] : inTop10 ? '#818cf8' : 'var(--text-muted)', fontWeight: exact ? 700 : 400 }}>
-                                        {driver}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                        {rw.picks.length > 3 && (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>+{rw.picks.length - 3} more</span>
-                        )}
-                    </div>
-                )}
-
-                {rw?.actual && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Actual top 3: <span style={{ color: '#fbbf24' }}>{rw.actual[0]}</span> · <span style={{ color: '#94a3b8' }}>{rw.actual[1]}</span> · <span style={{ color: '#b45309' }}>{rw.actual[2]}</span>
-                    </div>
-                )}
-
+                <div className="lb-detail-sub">
+                    Picked: {rw?.picks.slice(0, 3).map((d, i) => `P${i + 1} ${d}`).join(' · ') || '–'}
+                    {rw?.actual && <> · Result: {rw.actual.slice(0, 3).join(' · ')}</>}
+                </div>
                 {rw && rw.breakdown.length > 0 && (
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        {rw.breakdown.map((b, i) => (
-                            <span key={i} style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'rgba(56,189,248,0.1)', color: 'var(--color-primary)' }}>
-                                {b.label} {b.points >= 0 ? '+' : ''}{b.points}
-                            </span>
-                        ))}
-                    </div>
+                    <div className="lb-detail-sub">{rw.breakdown.map(b => `${b.label} ${b.points >= 0 ? '+' : ''}${b.points}`).join(' · ')}</div>
                 )}
-            </div>
+                <div className="lb-detail-pts">{scored ? `+${p.points}` : 'Waiting for result'}</div>
+            </li>
         );
     }
-
-    // score / series
-    const isActual = p.actualScoreA !== null && p.actualScoreA !== undefined;
-    const isSeries = p.matchType === 'series';
+    const scored = p.actualScoreA !== null && p.actualScoreA !== undefined;
     return (
-        <div className="lb-pred-row">
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                {isSeries && p.seriesFormat && (
-                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#818cf8', background: 'rgba(129,140,248,0.1)', padding: '0.1rem 0.3rem', borderRadius: 4 }}>
-                        {p.seriesFormat}
-                    </span>
-                )}
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>{p.teamA} vs {p.teamB}</span>
+        <li className="lb-detail">
+            <div className="lb-detail-main">
+                <strong>{p.teamA} vs {p.teamB}</strong>
+                {p.matchType === 'series' && p.seriesFormat && <span className="status-chip status-chip-muted">{p.seriesFormat.replace('BO', 'Best of ')}</span>}
             </div>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                    Pick: {p.predictedScoreA}–{p.predictedScoreB}
-                    {isActual && ` · Actual: ${p.actualScoreA}–${p.actualScoreB}`}
-                </span>
-                <ScoreBadge pts={p.points} matchType={p.matchType} />
-                <span style={{ fontWeight: 700, fontSize: '0.82rem', color: p.points === 5 ? '#4facfe' : p.points === 3 ? '#48bb78' : p.points === 2 ? '#667eea' : 'var(--text-muted)' }}>
-                    +{p.points}
-                </span>
+            <div className="lb-detail-sub">
+                Picked {p.predictedScoreA}–{p.predictedScoreB}
+                {scored ? <> · Final score {p.actualScoreA}–{p.actualScoreB}</> : ' · waiting for the result'}
             </div>
-        </div>
+            <div className="lb-detail-pts">{scored ? <TierChip pts={p.points} /> : null}</div>
+        </li>
     );
 }
 
@@ -166,35 +95,29 @@ export default function LeaderboardPage() {
     const [tournamentName, setTournamentName] = useState('');
     const [tournamentSport, setTournamentSport] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [expanded, setExpanded] = useState<string | null>(null);
 
     useEffect(() => { if (status === 'unauthenticated') router.push('/login'); }, [status, router]);
 
     useEffect(() => {
         if (session && tournamentId) {
-            fetch(`/api/leaderboard/${tournamentId}`).then(r => r.json()).then(setLeaderboard).catch(() => {}).finally(() => setLoading(false));
+            fetch(`/api/leaderboard/${tournamentId}`)
+                .then(async r => {
+                    const data = await r.json();
+                    if (!r.ok) { setError(data?.error || 'Could not load the league table.'); return; }
+                    setLeaderboard(Array.isArray(data) ? data : []);
+                })
+                .catch(() => setError('Could not load the league table.'))
+                .finally(() => setLoading(false));
             fetch(`/api/tournaments?id=${tournamentId}`).then(r => r.json()).then(d => {
                 setTournamentName(d?.name ?? '');
                 setTournamentSport(d?.sport ?? '');
-            });
+            }).catch(() => {});
         }
     }, [session, tournamentId]);
 
     const myId = (session?.user as any)?.id;
-    const top3 = leaderboard.slice(0, 3);
-    const podiumOrder = top3.length >= 2 ? [top3[1], top3[0], top3[2]].filter(Boolean) : top3;
-
-    // Sport-specific accent colour for points highlights
-    const sportAccent: Record<string, { color: string }> = {
-        'Formula 1': { color: '#ef4444' },
-        'MotoGP':    { color: '#f97316' },
-        'Counter-Strike': { color: '#818cf8' },
-        'League of Legends': { color: '#f59e0b' },
-        'Dota 2':    { color: '#ef4444' },
-        'Valorant':  { color: '#ff4655' },
-        'Tennis':    { color: '#84cc16' },
-    };
-    const accent = sportAccent[tournamentSport] ?? { color: '#38bdf8' };
 
     if (status === 'loading' || loading) {
         return (
@@ -206,100 +129,157 @@ export default function LeaderboardPage() {
         );
     }
 
+    const me = leaderboard.find(e => e.userId === myId);
+    const leader = leaderboard[0];
+    const anyScored = leaderboard.some(e => e.stats.scored > 0);
+    // Race leagues don't use the exact / margin / winner tiers, so hide those columns.
+    const isRaceLeague = tournamentSport === 'Formula 1' || tournamentSport === 'MotoGP';
+    const tied = (e: LeaderboardEntry) => leaderboard.filter(o => o.rank === e.rank).length > 1;
+
+    let myLine = '';
+    if (me && anyScored) {
+        const gap = leader.totalPoints - me.totalPoints;
+        myLine = me.rank === 1
+            ? (tied(me) ? `You're joint top with ${me.totalPoints} points.` : `You're top of the league with ${me.totalPoints} points${leaderboard[1] ? `, ${leaderboard[1].totalPoints === me.totalPoints ? 'level on points' : `${me.totalPoints - leaderboard[1].totalPoints} ahead`} of ${leaderboard.find(e => e.rank > 1)?.username ?? 'the rest'}` : ''}.`)
+            : `You're ${tied(me) ? 'joint ' : ''}${ordinal(me.rank)} of ${leaderboard.length} with ${me.totalPoints} points, ${gap} behind ${leader.username}.`;
+    }
+
     return (
         <div className="app-page">
             <Navbar />
             <div className="container">
-                {/* Header — sport imagery backdrop */}
                 <SportHeader
-                    title="Rankings"
-                    subtitle={tournamentName || undefined}
+                    title="League table"
+                    subtitle={tournamentName ? `${tournamentName}: points from every finished match, updated as soon as results are entered.` : undefined}
                     image={sportImage(tournamentSport)}
-                    actions={
-                        <>
-                            <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Predict</Link>
-                            <Link href="/tournaments" className="btn btn-secondary">All leagues</Link>
-                        </>
-                    }
+                    actions={<Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Make predictions</Link>}
                 />
 
-                {leaderboard.length === 0 ? (
+                {error ? (
+                    <div className="empty-state">
+                        <h3>Can&apos;t show this table</h3>
+                        <p>{error}</p>
+                        <Link href="/tournaments" className="btn btn-secondary">My leagues</Link>
+                    </div>
+                ) : leaderboard.length === 0 ? (
                     <div className="empty-state">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src="/img/sport-scoreboard.png" alt="" className="empty-state-img" />
-                        <h3>No predictions yet</h3>
-                        <p>Be the first to make a prediction and claim the top spot!</p>
-                        <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Make a prediction</Link>
+                        <h3>No players yet</h3>
+                        <p>Invite friends to this league, then everyone predicts the matches.</p>
                     </div>
                 ) : (
                     <>
-                        {/* Podium */}
-                        {top3.length >= 2 && (
-                            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', padding: '2rem', marginBottom: '2rem' }}>
-                                <div className="podium-section">
-                                    {podiumOrder.map((entry) => {
-                                        const rank = leaderboard.indexOf(entry);
-                                        const barClass = `podium-bar podium-bar-${rank + 1}`;
-                                        const avatarClass = `podium-avatar podium-avatar-${rank + 1}`;
-                                        const medals = ['🥇', '🥈', '🥉'];
-                                        return (
-                                            <div key={entry.userId} className="podium-item">
-                                                <div className={avatarClass}>{medals[rank]}</div>
-                                                <div className="podium-name">{entry.username}</div>
-                                                <div className="podium-points">{entry.totalPoints} pts</div>
-                                                <div className={barClass}>#{rank + 1}</div>
-                                            </div>
-                                        );
-                                    })}
+                        {myLine ? (
+                            <div className="next-step">
+                                <span className="next-step-icon" aria-hidden="true">{me?.rank === 1 ? '🏆' : '📈'}</span>
+                                <div>
+                                    <h2>{myLine}</h2>
+                                    <p>Every correct prediction counts. Make sure all upcoming matches have your pick before they kick off.</p>
                                 </div>
                             </div>
-                        )}
-
-                        {/* Full table */}
-                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', overflow: 'hidden' }}>
-                            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>All Participants ({leaderboard.length})</span>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Click a row to see breakdown</span>
+                        ) : !anyScored ? (
+                            <div className="next-step">
+                                <span className="next-step-icon" aria-hidden="true">⏳</span>
+                                <div>
+                                    <h2>No results yet</h2>
+                                    <p>The table fills in once the first match is finished and the organiser enters the score. Until then, everyone is on 0.</p>
+                                </div>
                             </div>
-                            <div style={{ padding: '0.5rem 0' }}>
-                                {leaderboard.map((entry, index) => {
-                                    const isMe = entry.userId === myId;
-                                    const isOpen = expanded === entry.userId;
-                                    const medals = ['🥇', '🥈', '🥉'];
-                                    const scored = entry.predictions.filter(p =>
-                                        p.matchType === 'race' ? !!p.raceWeekend?.actual : p.actualScoreA !== null
-                                    );
-                                    return (
-                                        <div key={entry.userId}>
-                                            <div className={`lb-row ${isMe ? 'lb-row-me' : ''}`}
-                                                onClick={() => setExpanded(isOpen ? null : entry.userId)}>
-                                                <div className="lb-rank">
-                                                    {index < 3 ? medals[index] : <span style={{ color: 'var(--text-muted)' }}>{index + 1}</span>}
-                                                </div>
-                                                <div className="lb-user">
-                                                    <div className="lb-username">
-                                                        {entry.username}
-                                                        {isMe && <span style={{ fontSize: '0.65rem', background: 'rgba(102,126,234,0.2)', color: '#a0b3f8', padding: '0.1rem 0.4rem', borderRadius: '999px', fontWeight: 700 }}>YOU</span>}
-                                                    </div>
-                                                    <div className="lb-scored">{scored.length} scored</div>
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <div className="lb-points" style={{ color: accent.color }}>{entry.totalPoints}</div>
-                                                    <div className="lb-pts-label">points</div>
-                                                </div>
-                                            </div>
-                                            {isOpen && entry.predictions.length > 0 && (
-                                                <div className="lb-breakdown">
-                                                    {entry.predictions.map(p => (
-                                                        <PredRow key={p.matchId} p={p} />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                        ) : null}
+
+                        <div className="data-table-wrap">
+                            <div className="data-table-scroll">
+                                <table className="data-table lb-table">
+                                    <caption className="sr-only" style={{ position: 'absolute', left: -9999 }}>League table for {tournamentName}</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" className="center">#</th>
+                                            <th scope="col">Player</th>
+                                            <th scope="col" className="num" title="Finished matches this player predicted">Played</th>
+                                            {!isRaceLeague && <>
+                                                <th scope="col" className="num hide-sm" title="Exact score: 5 points">Exact</th>
+                                                <th scope="col" className="num hide-sm" title="Right winner and goal difference: 3 points">W+M</th>
+                                                <th scope="col" className="num hide-sm" title="Right winner: 2 points">Win</th>
+                                                <th scope="col" className="num hide-sm" title="Wrong winner: 0 points">Miss</th>
+                                            </>}
+                                            <th scope="col" className="num">Points</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {leaderboard.map(entry => {
+                                            const isMe = entry.userId === myId;
+                                            const isOpen = expanded === entry.userId;
+                                            const medal = entry.rank <= 3 && entry.totalPoints > 0 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : null;
+                                            return (
+                                                <Fragment key={entry.userId}>
+                                                    <tr className={isMe ? 'lb-me' : undefined}>
+                                                        <td className="center lb-rank-cell">
+                                                            {medal ?? (tied(entry) ? `=${entry.rank}` : entry.rank)}
+                                                        </td>
+                                                        <td>
+                                                            <button
+                                                                type="button"
+                                                                className="lb-name-btn"
+                                                                onClick={() => setExpanded(isOpen ? null : entry.userId)}
+                                                                aria-expanded={isOpen}
+                                                                aria-controls={`lb-details-${entry.userId}`}
+                                                            >
+                                                                <span className="lb-name">{entry.username}</span>
+                                                                {isMe && <span className="status-chip status-chip-done">You</span>}
+                                                                <span className="lb-toggle" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
+                                                            </button>
+                                                        </td>
+                                                        <td className="num">{entry.stats.scored}</td>
+                                                        {!isRaceLeague && <>
+                                                            <td className="num hide-sm">{entry.stats.exact}</td>
+                                                            <td className="num hide-sm">{entry.stats.winnerAndMargin}</td>
+                                                            <td className="num hide-sm">{entry.stats.winner}</td>
+                                                            <td className="num hide-sm">{entry.stats.miss}</td>
+                                                        </>}
+                                                        <td className="num lb-points-cell">{entry.totalPoints}</td>
+                                                    </tr>
+                                                    {isOpen && (
+                                                        <tr className="lb-details-row">
+                                                            <td colSpan={isRaceLeague ? 4 : 8} id={`lb-details-${entry.userId}`}>
+                                                                {entry.predictions.length === 0 ? (
+                                                                    <p className="section-help" style={{ margin: 0 }}>
+                                                                        {isMe ? "You haven't made any predictions yet." : 'No predictions to show yet.'}
+                                                                    </p>
+                                                                ) : (
+                                                                    <ul className="lb-details">
+                                                                        {entry.predictions.map(p => <PredictionLine key={p.matchId} p={p} />)}
+                                                                    </ul>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
+
+                        <div className="table-legend">
+                            {isRaceLeague ? (
+                                <span><b>Points</b> come from your Top 10 order and bonus questions on each race weekend.</span>
+                            ) : (
+                                <>
+                                    <span><b>Played</b> finished matches predicted</span>
+                                    <span><b>Exact</b> exact score, 5 pts</span>
+                                    <span><b>W+M</b> right winner and margin, 3 pts</span>
+                                    <span><b>Win</b> right winner, 2 pts</span>
+                                    <span><b>Miss</b> 0 pts</span>
+                                </>
+                            )}
+                        </div>
+                        <p className="section-help" style={{ marginTop: '0.75rem' }}>
+                            Level on points? More exact scores ranks higher; still level means a shared place (=).
+                            Tap a name to see their picks. Other players&apos; picks stay hidden until each match kicks off.
+                            {' '}{plural(leaderboard.length, 'player', 'players')} in this league.
+                        </p>
                     </>
                 )}
             </div>

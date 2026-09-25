@@ -1,10 +1,12 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useRouter, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { Fragment, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
+import SportHeader, { sportImage } from '../../components/SportHeader';
+import { formatKickoff, timeUntil } from '@/lib/format';
 import ScoreStepper from '../../components/ScoreStepper';
 import RaceWeekendEditor, { emptyRaceWeekendForm, type RaceWeekendFormState } from '../../components/RaceWeekendEditor';
 import type { MatchType, SeriesFormat, RaceSession, RaceBonusConfig, RaceBonusQuestionKey } from '@/lib/types';
@@ -36,6 +38,7 @@ interface Match {
     positions_gained_result?: string | null; positions_lost_result?: string | null;
     winning_margin_result?: string | null; retirements_result?: string | null;
     is_season_finale?: boolean;
+    prediction_count?: number;
 }
 
 function raceResultToForm(m?: Match): RaceWeekendFormState {
@@ -100,11 +103,17 @@ const fmt = (ts: number) => new Date(ts * 1000).toLocaleString('en-GB', {
     hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
-export default function ManagePage() {
+function ManagePageInner() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const params = useParams();
     const tournamentId = params.tournamentId as string;
+    const isNew = useSearchParams().get('new') === '1';
+    const [joinCode, setJoinCode] = useState('');
+    const [leagueType, setLeagueType] = useState('private');
+    const [isActive, setIsActive] = useState(true);
+    const [linkCopied, setLinkCopied] = useState(false);
+    const [scoreMsg, setScoreMsg] = useState('');
 
     const [matches, setMatches] = useState<Match[]>([]);
     const [tournamentName, setTournamentName] = useState('');
@@ -186,10 +195,17 @@ export default function ManagePage() {
                 fetch(`/api/tournaments?id=${tournamentId}`),
             ]);
             const [mData, tData] = await Promise.all([mRes.json(), tRes.json()]);
-            setMatches(mData);
+            setMatches(Array.isArray(mData) ? mData : []);
             setTournamentName(tData?.name ?? '');
             const sport = tData?.sport ?? '';
             setTournamentSport(sport);
+            setJoinCode(tData?.join_code ?? '');
+            setLeagueType(tData?.league_type ?? 'private');
+            setIsActive(tData?.is_active !== false);
+            // New matches default to the league's own sport (was always Ice Hockey).
+            if (SUPPORTED_SPORTS.includes(sport)) {
+                setManualForm(f => f.teamA || f.teamB ? f : { ...f, sport, matchType: defaultMatchType(sport), seriesFormat: defaultSeriesFormat(sport), raceSession: null });
+            }
             setRaceBonusConfig(parseRaceBonusConfig(tData?.race_bonus_config));
             setIsCreator(tData?.created_by === user?.id);
             // Pre-fetch drivers if this is a race-type tournament
@@ -276,7 +292,8 @@ export default function ManagePage() {
                 is_finished: true,
             }),
         });
-        if (res.ok) { setEditingRaceResult(null); fetchData(); }
+        if (res.ok) { setEditingRaceResult(null); setScoreMsg(''); fetchData(); }
+        else setScoreMsg((await res.json().catch(() => ({})))?.error || 'The result was not saved. Please try again.');
         setRaceResultLoading(false);
     };
 
@@ -435,13 +452,16 @@ export default function ManagePage() {
         });
         if (res.ok) {
             setEditingScore(null);
+            setScoreMsg('');
             fetchData();
+        } else {
+            setScoreMsg((await res.json().catch(() => ({})))?.error || 'The result was not saved. Please try again.');
         }
         setScoreLoading(false);
     };
 
     const deleteMatch = async (matchId: string) => {
-        if (!confirm('Delete this match? Predictions for it will also be removed.')) return;
+        if (!confirm('Delete this match?\n\nEveryone\'s predictions for it are deleted too, and any points from it disappear from the table. This can\'t be undone.')) return;
         await fetch(`/api/matches/${matchId}`, { method: 'DELETE' });
         fetchData();
     };
@@ -481,167 +501,20 @@ export default function ManagePage() {
         setMatchEditLoading(false);
     };
 
-    if (status === 'loading' || loading) {
-        return (
-            <div className="app-page"><Navbar />
-                <div className="container" style={{ paddingTop: '2rem' }}>
-                    {[1, 2, 3].map(i => <div key={i} className="loading" style={{ height: '80px', borderRadius: 'var(--radius-lg)', marginBottom: '1rem' }} />)}
-                </div>
-            </div>
-        );
-    }
+    // Matches split by what the organiser needs to do with them.
+    const nowSec = Date.now() / 1000;
+    const matchGroups = [
+        { key: 'needs', title: 'Needs a result', help: 'These have started. Enter the final score so everyone gets their points.',
+          items: matches.filter(m => !m.is_finished && m.scheduled_time <= nowSec) },
+        { key: 'upcoming', title: 'Upcoming', help: 'Open for predictions until kick-off. You can still edit or delete them.',
+          items: matches.filter(m => !m.is_finished && m.scheduled_time > nowSec) },
+        { key: 'finished', title: 'Finished', help: 'Result entered and points awarded. Change a result if you made a mistake; points recalculate automatically.',
+          items: matches.filter(m => m.is_finished).sort((a, b) => b.scheduled_time - a.scheduled_time) },
+    ];
 
-    if (!loading && !isCreator) {
-        return (
-            <div className="app-page"><Navbar />
-                <div className="container">
-                    <div className="empty-state" style={{ paddingTop: '5rem' }}>
-                        <div className="empty-state-icon">🚫</div>
-                        <h3>Access Denied</h3>
-                        <p>Only the league creator (or site admins) can manage matches.</p>
-                        <Link href="/tournaments" className="btn btn-secondary">← Back to Leagues</Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="app-page">
-            <Navbar />
-            <div className="container">
-                {/* Header */}
-                <div className="app-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <h1 className="app-page-title">Manage matches</h1>
-                        {tournamentName && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{tournamentName}</p>}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <Link href={`/predictions/${tournamentId}`} className="btn btn-secondary">🎯 Predictions</Link>
-                        <Link href="/tournaments" className="btn btn-secondary">← Leagues</Link>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="tab-bar">
-                    <button className={`tab-btn ${tab === 'matches' ? 'tab-btn-active' : ''}`} onClick={() => setTab('matches')}>
-                        📋 Matches <span style={{ opacity: 0.7, marginLeft: '0.3rem' }}>({matches.length})</span>
-                    </button>
-                    <button className={`tab-btn ${tab === 'manual' ? 'tab-btn-active' : ''}`} onClick={() => setTab('manual')}>
-                        ✏️ Add Manual
-                    </button>
-                    <button className={`tab-btn ${tab === 'import' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('import'); fetchApiLeagues(); }}>
-                        ↓ Import from League
-                    </button>
-                    <button className={`tab-btn ${tab === 'preset' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('preset'); fetchPresetList(); }}>
-                        🏆 Tournament Presets
-                    </button>
-                    {(tournamentSport === 'Formula 1' || tournamentSport === 'MotoGP') && (
-                        <button className={`tab-btn ${tab === 'drivers' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('drivers'); fetchDrivers(); }}>
-                            🏎️ Driver Roster
-                        </button>
-                    )}
-                </div>
-
-                {/* --- MATCHES LIST --- */}
-                {tab === 'matches' && (
-                    <div>
-                        {matches.length === 0 ? (
-                            <div className="empty-state">
-                                <div className="empty-state-icon">📋</div>
-                                <h3>No matches yet</h3>
-                                <p>Add matches manually or import them from an API league.</p>
-                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-                                    <button className="btn btn-primary" onClick={() => setTab('manual')}>✏️ Add Manual</button>
-                                    <button className="btn btn-secondary" onClick={() => { setTab('import'); fetchApiLeagues(); }}>↓ Import</button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {matches.map(m => (
-                                    <div key={m.id} className="match-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1 }}>
-                                                <TeamLogoChip name={m.team_a} logo={m.team_a_logo} />
-                                                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                                                    {m.team_a} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>vs</span> {m.team_b}
-                                                </span>
-                                                <TeamLogoChip name={m.team_b} logo={m.team_b_logo} />
-                                                <span style={{
-                                                    fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: 700,
-                                                    background: m.source === 'api' ? 'rgba(56,189,248,0.15)' : 'var(--bg-tertiary)',
-                                                    color: m.source === 'api' ? 'var(--color-primary)' : 'var(--text-muted)',
-                                                    border: `1px solid ${m.source === 'api' ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                                                }}>
-                                                    {m.source === 'api' ? '🔗 API' : '✏️ Manual'}
-                                                </span>
-                                                {m.is_playoff && (
-                                                    <span style={{
-                                                        fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: 700,
-                                                        background: 'rgba(129,140,248,0.15)', color: '#818cf8',
-                                                        border: '1px solid rgba(129,140,248,0.35)',
-                                                    }}>⚔️ Knockout</span>
-                                                )}
-                                                {m.is_finished && m.match_type === 'race' && m.top10_result && m.top10_result.length > 0 && (
-                                                    <span style={{ fontSize: '0.78rem', color: '#fbbf24', fontWeight: 700 }}>
-                                                        {m.top10_result.slice(0, 3).join(' · ')} ✓
-                                                    </span>
-                                                )}
-                                                {m.match_type === 'race' && m.is_season_finale && (
-                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'rgba(249,115,22,0.15)', color: '#f97316', border: '1px solid rgba(249,115,22,0.35)' }}>
-                                                        ×2 FINALE
-                                                    </span>
-                                                )}
-                                                {m.is_finished && m.match_type !== 'race' && (
-                                                    <span style={{ fontSize: '0.85rem', color: '#48bb78', fontWeight: 700 }}>
-                                                        {m.team_a_score} – {m.team_b_score} ✓
-                                                    </span>
-                                                )}
-                                                {m.match_type === 'series' && m.series_format && (
-                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'rgba(129,140,248,0.1)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.3)' }}>
-                                                        {m.series_format}
-                                                    </span>
-                                                )}
-                                                {m.match_type === 'race' && m.race_session && (
-                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
-                                                        {m.race_session.toUpperCase()}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => editingMatch === m.id ? setEditingMatch(null) : openMatchEdit(m)}
-                                                >
-                                                    ✏️ Edit
-                                                </button>
-                                                {m.match_type === 'race' ? (
-                                                    <button
-                                                        className="btn btn-success btn-sm"
-                                                        onClick={() => {
-                                                            setEditingRaceResult(editingRaceResult === m.id ? null : m.id);
-                                                            setRaceResultForm(raceResultToForm(m));
-                                                            setRaceResultFinale(!!m.is_season_finale);
-                                                        }}
-                                                    >
-                                                        {m.is_finished ? 'Edit result' : 'Enter result'}
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        className="btn btn-success btn-sm"
-                                                        onClick={() => {
-                                                            setEditingScore(editingScore === m.id ? null : m.id);
-                                                            setScoreForm({ a: m.team_a_score ?? 0, b: m.team_b_score ?? 0 });
-                                                        }}
-                                                    >
-                                                        {m.is_finished ? '🔄 Score' : '+ Score'}
-                                                    </button>
-                                                )}
-                                                <button className="btn btn-danger btn-sm" onClick={() => deleteMatch(m.id)}>🗑</button>
-                                            </div>
-                                        </div>
-                                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>📅 {fmt(m.scheduled_time)}</div>
-
+    // Inline editors (match details, score, race result), shown under a table row.
+    const matchEditors = (m: Match) => (
+        <>
                                         {/* Inline match details editor */}
                                         {editingMatch === m.id && (
                                             <div style={{ marginTop: '0.75rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -667,11 +540,9 @@ export default function ManagePage() {
                                                         <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>Sport</label>
                                                         <select className="input" value={matchEditForm.sport}
                                                             onChange={e => setMatchEditForm(f => ({ ...f, sport: e.target.value }))}>
-                                                            <option>Ice Hockey</option>
-                                                            <option>Football</option>
-                                                            <option>Basketball</option>
-                                                            <option>Tennis</option>
-                                                            <option>Volleyball</option>
+                                                            {/* Full list, plus the match's own sport if it isn't in it: the old
+                                                                five-option list silently switched e.g. F1 matches to Ice Hockey on save. */}
+                                                            {(SUPPORTED_SPORTS.includes(matchEditForm.sport) ? SUPPORTED_SPORTS : [matchEditForm.sport, ...SUPPORTED_SPORTS]).map(sp => <option key={sp}>{sp}</option>)}
                                                         </select>
                                                     </div>
                                                 </div>
@@ -741,9 +612,238 @@ export default function ManagePage() {
                                                 </div>
                                             </div>
                                         )}
-                                    </div>
-                                ))}
+        </>
+    );
+
+    if (status === 'loading' || loading) {
+        return (
+            <div className="app-page"><Navbar />
+                <div className="container" style={{ paddingTop: '2rem' }}>
+                    {[1, 2, 3].map(i => <div key={i} className="loading" style={{ height: '80px', borderRadius: 'var(--radius-lg)', marginBottom: '1rem' }} />)}
+                </div>
+            </div>
+        );
+    }
+
+    if (!loading && !isCreator) {
+        return (
+            <div className="app-page"><Navbar />
+                <div className="container">
+                    <div className="empty-state" style={{ paddingTop: '5rem' }}>
+                        <div className="empty-state-icon">🚫</div>
+                        <h3>Only the organiser can manage this league</h3>
+                        <p>This page is for the person who created the league. You can still make predictions and see the table.</p>
+                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                            <Link href={`/predictions/${tournamentId}`} className="btn btn-primary">Go to matches</Link>
+                            <Link href="/tournaments" className="btn btn-secondary">My leagues</Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="app-page">
+            <Navbar />
+            <div className="container">
+                {/* Header */}
+                <SportHeader
+                    title={tournamentName || 'Manage league'}
+                    subtitle="Organiser view: add matches, enter results and invite players."
+                    image={sportImage(tournamentSport)}
+                    actions={
+                        <>
+                            <Link href={`/predictions/${tournamentId}`} className="btn btn-secondary">Player view</Link>
+                            <Link href={`/leaderboard/${tournamentId}`} className="btn btn-secondary">League table</Link>
+                        </>
+                    }
+                />
+
+                {isNew && matches.length === 0 && (
+                    <div className="next-step">
+                        <span className="next-step-icon" aria-hidden="true">🎉</span>
+                        <div>
+                            <h2>League created! Next: add the matches</h2>
+                            <p>Import real fixtures or pick a tournament preset below. Then share the invite link so your friends can join and predict.</p>
+                        </div>
+                    </div>
+                )}
+
+                {!isActive && (
+                    <div className="next-step next-step-warn">
+                        <span className="next-step-icon" aria-hidden="true">🔒</span>
+                        <div>
+                            <h2>This league is closed</h2>
+                            <p>Players can&apos;t make predictions. Reopen it from the Organiser page when you&apos;re ready.</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Invite panel */}
+                {joinCode && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: '#fff', border: '1.5px solid var(--border-color)', borderRadius: 16, padding: '0.9rem 1.1rem', marginBottom: '1.5rem' }}>
+                        <div>
+                            <div style={{ fontWeight: 800 }}>Invite players</div>
+                            <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                                {leagueType === 'open' ? 'This league is open: anyone can find and join it. ' : 'Only people with the code or link can join. '}
+                                Invite code: <strong style={{ fontFamily: 'monospace', letterSpacing: '0.12em', color: 'var(--text-primary)' }}>{joinCode}</strong>
                             </div>
+                        </div>
+                        <button
+                            className="btn btn-primary btn-sm"
+                            onClick={async () => {
+                                const origin = window.location.hostname.endsWith('yourfriendleague.com') ? 'https://app.yourfriendleague.com' : window.location.origin;
+                                await navigator.clipboard.writeText(`${origin}/join?code=${joinCode}`).catch(() => {});
+                                setLinkCopied(true);
+                                setTimeout(() => setLinkCopied(false), 2000);
+                            }}
+                        >
+                            {linkCopied ? 'Link copied!' : 'Copy invite link'}
+                        </button>
+                    </div>
+                )}
+
+                {/* Tabs */}
+                <div className="tab-bar">
+                    <button className={`tab-btn ${tab === 'matches' ? 'tab-btn-active' : ''}`} onClick={() => setTab('matches')}>
+                        Matches <span style={{ opacity: 0.7, marginLeft: '0.3rem' }}>({matches.length})</span>
+                    </button>
+                    <button className={`tab-btn ${tab === 'manual' ? 'tab-btn-active' : ''}`} onClick={() => setTab('manual')}>
+                        Add a match
+                    </button>
+                    <button className={`tab-btn ${tab === 'import' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('import'); fetchApiLeagues(); }}>
+                        Import fixtures
+                    </button>
+                    <button className={`tab-btn ${tab === 'preset' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('preset'); fetchPresetList(); }}>
+                        Tournament presets
+                    </button>
+                    {(tournamentSport === 'Formula 1' || tournamentSport === 'MotoGP') && (
+                        <button className={`tab-btn ${tab === 'drivers' ? 'tab-btn-active' : ''}`} onClick={() => { setTab('drivers'); fetchDrivers(); }}>
+                            Drivers
+                        </button>
+                    )}
+                </div>
+
+                {/* --- MATCHES LIST --- */}
+                {tab === 'matches' && (
+                    <div>
+                        {matches.length === 0 ? (
+                            <div className="empty-state">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/img/sport-scoreboard.png" alt="" className="empty-state-img" />
+                                <h3>No matches yet</h3>
+                                <p>Your players can only predict matches you add. The quickest way is to import real fixtures, or pick a tournament preset.</p>
+                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                    <button className="btn btn-primary" onClick={() => { setTab('import'); fetchApiLeagues(); }}>Import fixtures</button>
+                                    <button className="btn btn-secondary" onClick={() => { setTab('preset'); fetchPresetList(); }}>Tournament presets</button>
+                                    <button className="btn btn-secondary" onClick={() => setTab('manual')}>Add one by hand</button>
+                                </div>
+                            </div>
+                        ) : (
+                            matchGroups.map(g => g.items.length > 0 && (
+                                <section key={g.key} style={{ marginBottom: '2rem' }} aria-labelledby={`grp-${g.key}`}>
+                                    <h2 id={`grp-${g.key}`} className="match-section-header">{g.title} ({g.items.length})</h2>
+                                    <p className="section-help">{g.help}</p>
+                                    <div className="data-table-wrap">
+                                        <div className="data-table-scroll">
+                                            <table className="data-table stack-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th scope="col">Kick-off</th>
+                                                        <th scope="col">Match</th>
+                                                        <th scope="col" className="num" title="How many players have made a prediction">Picks</th>
+                                                        <th scope="col">Result</th>
+                                                        <th scope="col" className="num">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {g.items.map(m => {
+                                                        const started = m.scheduled_time <= nowSec;
+                                                        const left = !started ? timeUntil(m.scheduled_time) : null;
+                                                        const editorOpen = editingMatch === m.id || editingScore === m.id || editingRaceResult === m.id;
+                                                        return (
+                                                            <Fragment key={m.id}>
+                                                                <tr>
+                                                                    <td data-label="Kick-off" style={{ whiteSpace: 'nowrap' }}>
+                                                                        <div style={{ fontWeight: 600 }}>{formatKickoff(m.scheduled_time)}</div>
+                                                                        {left && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>in {left}</div>}
+                                                                    </td>
+                                                                    <td>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                            {m.match_type !== 'race' && <TeamLogoChip name={m.team_a} logo={m.team_a_logo} />}
+                                                                            <strong>{m.match_type === 'race' ? m.team_a : `${m.team_a} vs ${m.team_b}`}</strong>
+                                                                            {m.match_type !== 'race' && <TeamLogoChip name={m.team_b} logo={m.team_b_logo} />}
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
+                                                                            {m.is_playoff && <span className="status-chip status-chip-live" title="Knockout: players can't predict a draw">Knockout</span>}
+                                                                            {m.match_type === 'series' && m.series_format && <span className="status-chip status-chip-muted">{m.series_format.replace('BO', 'Best of ')}</span>}
+                                                                            {m.match_type === 'race' && m.race_session && <span className="status-chip status-chip-muted">{m.race_session.replace('_', ' ')}</span>}
+                                                                            {m.match_type === 'race' && m.is_season_finale && <span className="status-chip status-chip-live">Finale ×2</span>}
+                                                                            <span className="status-chip status-chip-muted" title={m.source === 'api' ? 'Imported from a fixture feed' : 'Added by hand'}>{m.source === 'api' ? 'Imported' : 'Manual'}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td data-label="Picks" className="num">{m.prediction_count ?? 0}</td>
+                                                                    <td data-label="Result">
+                                                                        {m.is_finished ? (
+                                                                            m.match_type === 'race'
+                                                                                ? <span className="status-chip status-chip-done">{(m.top10_result ?? []).slice(0, 3).join(' · ') || 'Entered'}</span>
+                                                                                : <span className="status-chip status-chip-done">{m.team_a_score} – {m.team_b_score}</span>
+                                                                        ) : started ? (
+                                                                            <span className="status-chip status-chip-live">Needs result</span>
+                                                                        ) : (
+                                                                            <span className="status-chip status-chip-upcoming">Not started</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="num stack-actions" style={{ whiteSpace: 'nowrap' }}>
+                                                                        <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                                                                            <button
+                                                                                className={`btn btn-sm ${started && !m.is_finished ? 'btn-primary' : 'btn-secondary'}`}
+                                                                                onClick={() => {
+                                                                                    setScoreMsg('');
+                                                                                    if (m.match_type === 'race') {
+                                                                                        setEditingRaceResult(editingRaceResult === m.id ? null : m.id);
+                                                                                        setRaceResultForm(raceResultToForm(m));
+                                                                                        setRaceResultFinale(!!m.is_season_finale);
+                                                                                    } else {
+                                                                                        setEditingScore(editingScore === m.id ? null : m.id);
+                                                                                        setScoreForm({ a: m.team_a_score ?? 0, b: m.team_b_score ?? 0 });
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                {m.is_finished ? 'Change result' : 'Enter result'}
+                                                                            </button>
+                                                                            <button className="btn btn-secondary btn-sm" onClick={() => editingMatch === m.id ? setEditingMatch(null) : openMatchEdit(m)}>
+                                                                                Edit
+                                                                            </button>
+                                                                            <button className="btn btn-danger btn-sm" onClick={() => deleteMatch(m.id)} aria-label={`Delete ${m.team_a} vs ${m.team_b}`} title="Delete match">
+                                                                                🗑
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                                {editorOpen && (
+                                                                    <tr>
+                                                                        <td colSpan={5} className="stack-editor" style={{ background: 'var(--bg-tertiary)' }}>
+                                                                            {!started && (editingScore === m.id || editingRaceResult === m.id) && (
+                                                                                <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#9a3412', fontWeight: 600 }}>
+                                                                                    This match hasn&apos;t started yet. Entering a result now finishes it and locks predictions.
+                                                                                </p>
+                                                                            )}
+                                                                            {matchEditors(m)}
+                                                                            {scoreMsg && <div className="auth-error" role="alert" style={{ marginTop: '0.5rem' }}>{scoreMsg}</div>}
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </Fragment>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </section>
+                            ))
                         )}
                     </div>
                 )}
@@ -1200,5 +1300,13 @@ export default function ManagePage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function ManagePage() {
+    return (
+        <Suspense>
+            <ManagePageInner />
+        </Suspense>
     );
 }
