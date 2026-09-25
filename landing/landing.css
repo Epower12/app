@@ -630,6 +630,9 @@
 .ld-footer-links { display: flex; flex-wrap: wrap; gap: 1.25rem; }
 .ld-footer-links a,
 .ld-footer-links button { color: inherit; transition: color 0.15s ease; }
+.ld-credits { margin-top: 0.9rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); }
+.ld-credits a { text-decoration: underline; }
+.ld-credits a:hover { color: #fff; }
 .ld-footer-links a:hover,
 .ld-footer-links button:hover { color: #fff; }
 

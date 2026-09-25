@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { FadeIn } from '../motion';
-import { MEDIA } from '../media';
+import { CREDITS, MEDIA } from '../media';
 import { CookieSettingsLink } from '../../components/CookieConsent';
 
 export default function Footer() {
@@ -36,6 +36,17 @@ export default function Footer() {
                         <CookieSettingsLink />
                     </nav>
                 </div>
+                {CREDITS.length > 0 && (
+                    <p className="ld-wrap ld-credits">
+                        Videos via Pexels:{' '}
+                        {CREDITS.map((c, i) => (
+                            <span key={c.author}>
+                                {i > 0 && ', '}
+                                <a href={c.href} target="_blank" rel="noopener noreferrer">{c.author}</a>
+                            </span>
+                        ))}
+                    </p>
+                )}
             </footer>
         </>
     );
