@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
 import { ensureMigrations } from '@/lib/migrations';
+import { applyImportedResults } from '@/lib/applyResults';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 // POST /api/matches/import-race
@@ -62,28 +63,19 @@ export async function POST(request: Request) {
     const inserted = [];
     for (const ar of toImport) {
         const matchId = uuidv4();
-        const isFinished = ar.status === 'finished';
 
+        // Results (Top 10 and bonus answers) are filled in by applyImportedResults below.
         await db.query(
             `INSERT INTO matches
              (id, tournament_id, team_a, team_b, scheduled_time, sport, source, api_race_id,
-              match_type, race_session, is_finished, p1_driver, p2_driver, p3_driver)
-             VALUES ($1, $2, $3, $4, $5, 'Formula 1', 'api', $6, 'race', 'race', $7, $8, $9, $10)`,
-            [
-                matchId,
-                tournamentId,
-                ar.race_name,
-                `${ar.season} F1`,
-                ar.race_time,
-                ar.id,
-                isFinished,
-                ar.p1_driver,
-                ar.p2_driver,
-                ar.p3_driver,
-            ]
+              match_type, race_session)
+             VALUES ($1, $2, $3, $4, $5, 'Formula 1', 'api', $6, 'race', 'race')`,
+            [matchId, tournamentId, ar.race_name, `${ar.season} F1`, ar.race_time, ar.id]
         );
         inserted.push(matchId);
     }
+
+    await applyImportedResults(tournamentId);
 
     return NextResponse.json({ success: true, imported: inserted.length, skipped: apiRaces.length - toImport.length });
 }

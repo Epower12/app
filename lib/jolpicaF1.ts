@@ -3,6 +3,14 @@
  * discontinued Ergast API. No key required. Docs: https://github.com/jolpica/jolpica-f1
  */
 
+import type { F1ResultRow } from './results';
+
+interface JolpicaResult {
+    number?: string; position: string; positionText?: string; grid?: string; laps?: string;
+    Driver: { givenName: string; familyName: string };
+    Time?: { time?: string }; FastestLap?: { rank?: string };
+}
+
 const BASE_URL = 'https://api.jolpi.ca/ergast/f1';
 
 export interface F1Race {
@@ -11,10 +19,7 @@ export interface F1Race {
     timestamp: number;
 }
 
-export interface F1RaceResult {
-    position: number;
-    driverName: string;
-}
+export type { F1ResultRow };
 
 /** Fetch the full race calendar for a season. */
 export async function fetchF1SeasonRaces(season: number): Promise<F1Race[]> {
@@ -33,17 +38,30 @@ export async function fetchF1SeasonRaces(season: number): Promise<F1Race[]> {
     });
 }
 
-/** Fetch the finishing order (top 3) for a specific race. Returns [] if not yet run. */
-export async function fetchF1RaceResults(season: number, round: number): Promise<F1RaceResult[]> {
+/** Fetch the full classification for a race. Returns [] if it hasn't been run yet. */
+export async function fetchF1RaceResults(season: number, round: number): Promise<F1ResultRow[]> {
     const res = await fetch(`${BASE_URL}/${season}/${round}/results.json`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Jolpica-F1 HTTP error: ${res.status}`);
     const data = await res.json();
     const results = data.MRData?.RaceTable?.Races?.[0]?.Results ?? [];
 
-    return results
-        .filter((r: any) => Number(r.position) <= 3)
-        .map((r: any) => ({
-            position: Number(r.position),
-            driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
-        }));
+    return results.map((r: JolpicaResult) => ({
+        number: String(r.number ?? ''),
+        driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
+        position: Number(r.position),
+        positionText: String(r.positionText ?? r.position),
+        grid: Number(r.grid ?? 0),
+        laps: Number(r.laps ?? 0),
+        time: r.Time?.time ?? null,
+        fastestLapRank: r.FastestLap?.rank ? Number(r.FastestLap.rank) : null,
+    }));
+}
+
+/** Pole sitter (P1 in qualifying), or null if qualifying hasn't been published. */
+export async function fetchF1Pole(season: number, round: number): Promise<{ driverName: string; number: string } | null> {
+    const res = await fetch(`${BASE_URL}/${season}/${round}/qualifying.json`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Jolpica-F1 HTTP error: ${res.status}`);
+    const data = await res.json();
+    const q = (data.MRData?.RaceTable?.Races?.[0]?.QualifyingResults ?? []).find((r: JolpicaResult) => Number(r.position) === 1);
+    return q ? { driverName: `${q.Driver.givenName} ${q.Driver.familyName}`, number: String(q.number ?? '') } : null;
 }

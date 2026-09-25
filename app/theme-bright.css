@@ -407,3 +407,47 @@
   .data-table.stack-sm .stack-actions { padding-top: 0.5rem; }
   .data-table.stack-sm .stack-editor { padding: 0.75rem; border-radius: 12px; }
 }
+
+/* ── Automatic results (organiser match tables) ─────────────────────────── */
+.app-page .auto-results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 16px;
+  border: 1.5px solid var(--border-color);
+  background: #fff;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.app-page .auto-results-bar > div { flex: 1 1 320px; }
+.app-page .auto-results-msg {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3f6212;
+}
+.app-page .auto-results-msg-warn { color: #9a3412; }
+.app-page .result-note {
+  margin: 0.4rem 0 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.app-page .result-auto {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}

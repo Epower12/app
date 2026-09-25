@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { ensureLogosForTeams } from '@/lib/teamLogos';
+import { applyImportedResults } from '@/lib/applyResults';
+import { ensureMigrations } from '@/lib/migrations';
 
 // POST /api/matches/import
 // Body: { tournamentId: string, apiMatchIds: number[] }
@@ -24,6 +26,8 @@ export async function POST(request: Request) {
     if (!tournamentId || !Array.isArray(apiMatchIds) || apiMatchIds.length === 0) {
         return NextResponse.json({ error: 'tournamentId and apiMatchIds[] are required' }, { status: 400 });
     }
+
+    await ensureMigrations();
 
     // Verify the tournament belongs to this user
     const { rows: tournamentRows } = await db.query(
@@ -64,13 +68,13 @@ export async function POST(request: Request) {
     const teamNames: string[] = [];
     for (const am of toImport) {
         const matchId = uuidv4();
-        const isFinished = am.status === 'finished';
 
+        // Results are filled in by applyImportedResults below, so finished
+        // fixtures follow the same rules as ones that finish later.
         await db.query(
             `INSERT INTO matches
-             (id, tournament_id, team_a, team_b, scheduled_time, sport, source, api_match_id,
-              team_a_score, team_b_score, is_finished)
-             VALUES ($1, $2, $3, $4, $5, $6, 'api', $7, $8, $9, $10)`,
+             (id, tournament_id, team_a, team_b, scheduled_time, sport, source, api_match_id)
+             VALUES ($1, $2, $3, $4, $5, $6, 'api', $7)`,
             [
                 matchId,
                 tournamentId,
@@ -79,14 +83,13 @@ export async function POST(request: Request) {
                 am.match_time,
                 tournament.sport || 'Ice Hockey',
                 am.id,
-                am.home_score,
-                am.away_score,
-                isFinished,
             ]
         );
         inserted.push(matchId);
         teamNames.push(am.home_team, am.away_team);
     }
+
+    await applyImportedResults(tournamentId);
 
     // Background fetch logos for any new team names
     ensureLogosForTeams(teamNames);
