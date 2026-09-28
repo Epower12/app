@@ -12,10 +12,19 @@ export interface NhlGame {
     awayTeam: string;
     homeScore: number | null;
     awayScore: number | null;
-    status: 'scheduled' | 'live' | 'finished';
+    status: 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled';
+    stage: 'preseason' | 'regular' | 'playoffs' | null;
 }
 
-function mapGameState(state: string): 'scheduled' | 'live' | 'finished' {
+const STAGES: Record<number, NhlGame['stage']> = { 1: 'preseason', 2: 'regular', 3: 'playoffs' };
+
+/**
+ * NHL final scores already count a shoot-out win as one extra goal for the
+ * winner, which is exactly the rule we use elsewhere, so no adjustment needed.
+ */
+function mapGameState(state: string, scheduleState?: string): NhlGame['status'] {
+    if (scheduleState === 'PPD' || scheduleState === 'SUSP') return 'postponed';
+    if (scheduleState === 'CNCL') return 'cancelled';
     if (state === 'OFF' || state === 'FINAL') return 'finished';
     if (state === 'LIVE' || state === 'CRIT') return 'live';
     return 'scheduled';
@@ -25,6 +34,20 @@ function teamName(team: any): string {
     const place = team.placeName?.default ?? '';
     const common = team.commonName?.default ?? team.abbrev ?? 'Unknown';
     return place ? `${place} ${common}` : common;
+}
+
+/** GET JSON, retrying twice on network errors and 429/5xx (the NHL API has the odd blip). */
+async function fetchWithRetry(url: string) {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const res = await fetch(url, { cache: 'no-store' });
+            if (res.ok) return await res.json();
+            if (attempt >= 2 || (res.status !== 429 && res.status < 500)) throw new Error(`NHL API HTTP error: ${res.status}`);
+        } catch (err) {
+            if (attempt >= 2 || (err instanceof Error && err.message.startsWith('NHL API HTTP error'))) throw err;
+        }
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
 }
 
 /**
@@ -41,9 +64,7 @@ export async function fetchNhlSeasonGames(seasonStartYear: number): Promise<NhlG
     const maxWeeks = 50; // safety cap so a malformed response can't loop forever
 
     for (let i = 0; i < maxWeeks; i++) {
-        const res = await fetch(`${BASE_URL}/schedule/${cursor}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`NHL API HTTP error: ${res.status}`);
-        const data = await res.json();
+        const data = await fetchWithRetry(`${BASE_URL}/schedule/${cursor}`);
 
         for (const day of data.gameWeek ?? []) {
             for (const g of day.games ?? []) {
@@ -56,7 +77,8 @@ export async function fetchNhlSeasonGames(seasonStartYear: number): Promise<NhlG
                     awayTeam: teamName(g.awayTeam),
                     homeScore: g.homeTeam?.score ?? null,
                     awayScore: g.awayTeam?.score ?? null,
-                    status: mapGameState(g.gameState),
+                    status: mapGameState(g.gameState, g.gameScheduleState),
+                    stage: STAGES[g.gameType] ?? null,
                 });
             }
         }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import db from '../../../lib/db';
 import { authOptions } from '../auth/[...nextauth]/route';
+import { ensureMigrations } from '../../../lib/migrations';
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL ?? '';
 
@@ -20,10 +21,12 @@ export async function GET(request: Request) {
     const section = searchParams.get('section') ?? 'stats';
 
     if (section === 'stats') {
-        const { rows: uRows } = await db.query('SELECT COUNT(*) as c FROM users');
-        const { rows: tRows } = await db.query('SELECT COUNT(*) as c FROM tournaments');
-        const { rows: mRows } = await db.query('SELECT COUNT(*) as c FROM matches');
-        const { rows: pRows } = await db.query('SELECT COUNT(*) as c FROM predictions');
+        await ensureMigrations();
+        // Real numbers only: the demo league's fictional players and games are left out.
+        const { rows: uRows } = await db.query('SELECT COUNT(*) as c FROM users WHERE NOT is_demo');
+        const { rows: tRows } = await db.query('SELECT COUNT(*) as c FROM tournaments WHERE NOT is_demo');
+        const { rows: mRows } = await db.query('SELECT COUNT(*) as c FROM matches m JOIN tournaments t ON t.id = m.tournament_id WHERE NOT t.is_demo');
+        const { rows: pRows } = await db.query('SELECT COUNT(*) as c FROM predictions p JOIN users u ON u.id = p.user_id WHERE NOT u.is_demo');
 
         return NextResponse.json({
             users: Number(uRows[0].c),

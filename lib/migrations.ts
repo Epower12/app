@@ -341,6 +341,43 @@ export async function runMigrations() {
     // tournaments: per-league toggle for which race bonus questions are active.
     // NULL means "use the suggested defaults" (see defaultRaceBonusConfig in lib/types.ts).
     await run(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS race_bonus_config JSONB`);
+
+    // Automatic results. matches.result_source says who entered the result
+    // ('api' = filled in by the sync, 'manual' = the organiser; NULL = before this
+    // existed, treated as manual). An organiser's result is never overwritten;
+    // result_note explains anything the organiser should look at (a different
+    // official score, a postponement, a bonus answer still to enter).
+    await run(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS result_source TEXT`);
+    await run(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS result_note TEXT`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_matches_api_match ON matches(api_match_id) WHERE api_match_id IS NOT NULL`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_matches_api_race ON matches(api_race_id) WHERE api_race_id IS NOT NULL`);
+    // api_races: the full classification (not just the podium) and the pole sitter.
+    await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS result_rows JSONB`);
+    await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS pole_driver TEXT`);
+    await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS pole_number TEXT`);
+
+    // api_matches.stage: 'preseason', 'regular' or 'playoffs' where the feed says so (NHL).
+    await run(`ALTER TABLE api_matches ADD COLUMN IF NOT EXISTS stage TEXT`);
+
+    // Demo league (lib/demo.ts): fictional players and their league are flagged so
+    // they can be told apart from real ones, left out of owner stats and removed in one go.
+    await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE`);
+    await run(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE`);
+
+    // Player-suggested results: after a match, members can tell the organiser the
+    // final score; the organiser confirms it with one tap on the Manage page.
+    await run(`
+        CREATE TABLE IF NOT EXISTS result_suggestions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            team_a_score INTEGER NOT NULL,
+            team_b_score INTEGER NOT NULL,
+            created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+            UNIQUE(match_id, user_id)
+        )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS idx_result_suggestions_match ON result_suggestions(match_id)`);
 }
 
 // One shared run per server process: the startup hook (instrumentation.ts) and

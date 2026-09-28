@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { ensureMigrations } from '@/lib/migrations';
-import { resyncAllLeagues } from '@/lib/fixtureSync';
+import { resyncAllLeagues, resyncDueLeagues } from '@/lib/fixtureSync';
+import { topUpDemoLeague } from '@/lib/demo';
 
 /**
  * POST /api/fixtures/sync
  *
- * Re-syncs every currently tracked API-Sports league (added via /owner) into api_matches.
- * Designed to be called from Cloud Scheduler on a daily cron.
+ * Refreshes the tracked fixture sources (added via /owner) and then fills in
+ * finished results on the league matches imported from them.
+ * Designed to be called from Cloud Scheduler every 30 minutes (see docs/RESULTS.md).
+ * By default only sources that are due are called (a game in progress or just
+ * finished, or not refreshed for a day); `?full=1` refreshes every source.
  *
  * Auth: requires `Authorization: Bearer <FIXTURE_SYNC_SECRET>` matching the env var.
  * Matches the pattern used by /api/news/refresh.
@@ -36,12 +40,17 @@ async function handle(request: Request) {
 
     try {
         await ensureMigrations();
-        const results = await resyncAllLeagues();
+        const full = new URL(request.url).searchParams.get('full') === '1';
+        const { results, applied } = full ? await resyncAllLeagues() : await resyncDueLeagues();
         const matchesSynced = results.reduce((sum, r) => sum + r.matchesSynced, 0);
+        // Keep the demo league (if there is one) moving: next week's games and new picks.
+        const demo = await topUpDemoLeague().catch(err => ({ error: String(err?.message ?? err) }));
         return NextResponse.json({
             ok: true,
             leaguesSynced: results.length,
             matchesSynced,
+            resultsApplied: applied,
+            demo,
             results,
             at: new Date().toISOString(),
         });

@@ -23,6 +23,7 @@ export default function ScoreStepper({ value, onChange, disabled = false }: Prop
             <button
                 type="button"
                 style={btn}
+                aria-label="Decrease score"
                 disabled={disabled || value <= 0}
                 onClick={() => onChange(Math.max(0, value - 1))}
             >
@@ -35,6 +36,7 @@ export default function ScoreStepper({ value, onChange, disabled = false }: Prop
                 value={value}
                 disabled={disabled}
                 onChange={e => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+                aria-label="Score"
                 onFocus={e => e.target.select()}
                 style={{
                     width: 54, height: 42, textAlign: 'center', fontWeight: 800,
@@ -52,6 +54,7 @@ export default function ScoreStepper({ value, onChange, disabled = false }: Prop
             <button
                 type="button"
                 style={btn}
+                aria-label="Increase score"
                 disabled={disabled}
                 onClick={() => onChange(value + 1)}
             >

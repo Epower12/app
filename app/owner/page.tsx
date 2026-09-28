@@ -11,13 +11,18 @@ interface Tournament { id: string; name: string; sport: string; league_type: str
 interface Stats { users: number; tournaments: number; matches: number; predictions: number; }
 interface ApiLeague { id: number; name: string; sport: string; provider: string; external_id: number; season: number; country: string; logo_url: string; match_count: number; synced_at: number; }
 
+interface DemoInfo { id: string; name: string; members: number; real_members: number; matches: number; picks: number; }
+
 type SyncSource = 'api-sports-hockey' | 'api-sports-football' | 'nhl' | 'jolpica-f1';
 
 export default function OwnerPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const [accessDenied, setAccessDenied] = useState(false);
-    const [tab, setTab] = useState<'stats' | 'users' | 'tournaments' | 'api'>('stats');
+    const [tab, setTab] = useState<'stats' | 'users' | 'tournaments' | 'api' | 'demo'>('stats');
+    const [demo, setDemo] = useState<DemoInfo | null>(null);
+    const [demoBusy, setDemoBusy] = useState(false);
+    const [demoMsg, setDemoMsg] = useState('');
     const [stats, setStats] = useState<Stats | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -126,11 +131,34 @@ export default function OwnerPage() {
         setApiLeagues(prev => prev.filter(l => l.id !== id));
     };
 
+    const loadDemo = async () => {
+        const res = await fetch('/api/owner/demo');
+        if (res.ok) setDemo((await res.json()).demo);
+    };
+
+    const demoAction = async (action: 'seed' | 'remove') => {
+        if (action === 'remove' && !confirm('Remove the demo league and all its fictional players? Real users who joined it lose their demo picks.')) return;
+        setDemoBusy(true);
+        setDemoMsg(action === 'seed' ? 'Working… the first run fetches two NHL seasons and can take a minute.' : 'Removing…');
+        try {
+            const res = await fetch('/api/owner/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+            const data = await res.json();
+            if (!res.ok) setDemoMsg(`Failed: ${data.error}`);
+            else if (action === 'seed') setDemoMsg(`Done: ${data.pastAdded} past and ${data.upcomingAdded} upcoming games added, ${data.picksAdded} picks, ${data.resultsFilled} results filled in.`);
+            else setDemoMsg(`Removed ${data.leaguesRemoved} league and ${data.playersRemoved} fictional players.`);
+            await loadDemo();
+        } catch {
+            setDemoMsg('Failed: network error');
+        }
+        setDemoBusy(false);
+    };
+
     const handleTabChange = (t: typeof tab) => {
         setTab(t);
         if (t === 'users') loadUsers();
         if (t === 'tournaments') loadTournaments();
         if (t === 'api') loadApiLeagues();
+        if (t === 'demo') loadDemo();
     };
 
     const updateRole = async (userId: string, role: string) => {
@@ -224,7 +252,46 @@ export default function OwnerPage() {
                     <button className={`tab-btn ${tab === 'api' ? 'tab-btn-active' : ''}`} onClick={() => handleTabChange('api')}>
                         🔗 API Leagues
                     </button>
+                    <button className={`tab-btn ${tab === 'demo' ? 'tab-btn-active' : ''}`} onClick={() => handleTabChange('demo')}>
+                        🎬 Demo league
+                    </button>
                 </div>
+
+                {tab === 'demo' && (
+                    <div className="owner-section">
+                        <div className="owner-section-title">🎬 NHL Demo League</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            <p>
+                                An open league called <strong>NHL Demo League</strong> with 11 fictional players, so visitors see a busy
+                                league straight away. It uses real NHL games: last season&apos;s final playoff games with a full table,
+                                plus the coming week&apos;s games. Every scheduled sync adds new games and the fictional players keep
+                                picking, and results arrive automatically. Real users can join and play along.
+                            </p>
+                            <p style={{ color: 'var(--text-muted)' }}>
+                                Fictional players can&apos;t sign in, are left out of the Overview numbers, and are all removed with the button below.
+                            </p>
+                            {demo ? (
+                                <p>
+                                    <strong>Running:</strong> {demo.members} members ({demo.real_members} real), {demo.matches} games, {demo.picks} picks.{' '}
+                                    <Link href={`/leaderboard/${demo.id}`}>Open its table</Link>
+                                </p>
+                            ) : (
+                                <p><strong>Not created yet.</strong></p>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button className="btn btn-primary btn-sm" onClick={() => demoAction('seed')} disabled={demoBusy}>
+                                    {demo ? 'Top up now' : 'Create demo league'}
+                                </button>
+                                {demo && (
+                                    <button className="btn btn-danger btn-sm" onClick={() => demoAction('remove')} disabled={demoBusy}>
+                                        Remove demo league
+                                    </button>
+                                )}
+                            </div>
+                            {demoMsg && <p role="status" style={{ fontWeight: 600 }}>{demoMsg}</p>}
+                        </div>
+                    </div>
+                )}
 
                 {/* Users Management */}
                 {tab === 'users' && (
