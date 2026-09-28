@@ -34,12 +34,20 @@ export async function GET(request: Request) {
 
         // prediction_count: how many players have a pick in (numbers only, never
         // the picks), so organisers can see engagement per match.
+        // suggested_results: final scores players reported after the match, grouped
+        // with how many said each ("[{a:2,b:1,n:3}]"); my_suggestion: the viewer's own.
         const { rows: matches } = await db.query(
             `SELECT m.*,
                 ((SELECT COUNT(*) FROM predictions p WHERE p.match_id = m.id)
-                 + (SELECT COUNT(*) FROM race_weekend_predictions r WHERE r.match_id = m.id))::int AS prediction_count
+                 + (SELECT COUNT(*) FROM race_weekend_predictions r WHERE r.match_id = m.id))::int AS prediction_count,
+                (SELECT json_agg(x ORDER BY x.n DESC, x.first_at) FROM (
+                    SELECT rs.team_a_score AS a, rs.team_b_score AS b, COUNT(*)::int AS n, MIN(rs.created_at) AS first_at
+                    FROM result_suggestions rs WHERE rs.match_id = m.id GROUP BY rs.team_a_score, rs.team_b_score) x
+                ) AS suggested_results,
+                (SELECT json_build_object('a', rs.team_a_score, 'b', rs.team_b_score)
+                   FROM result_suggestions rs WHERE rs.match_id = m.id AND rs.user_id = $2) AS my_suggestion
              FROM matches m WHERE m.tournament_id = $1 ORDER BY m.scheduled_time ASC`,
-            [tournamentId]
+            [tournamentId, session.user.id]
         );
 
         // Decorate with team logos (only for non-race matches)

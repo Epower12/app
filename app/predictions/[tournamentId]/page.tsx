@@ -26,6 +26,8 @@ interface Match {
     positions_gained_result?: string | null; positions_lost_result?: string | null;
     winning_margin_result?: string | null; retirements_result?: string | null;
     is_season_finale?: boolean;
+    suggested_results?: { a: number; b: number; n: number }[] | null;
+    my_suggestion?: { a: number; b: number } | null;
 }
 
 interface ScorePrediction { id: string; match_id: string; team_a_score: number; team_b_score: number; }
@@ -714,6 +716,64 @@ function ScoreCard({ match, tournamentId, sport = '', scorePrediction, onSubmitS
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>You didn&apos;t predict this one</span>
                 )}
             </div>
+
+            {locked && !match.is_finished && timeLeft <= 0 && <ReportScore match={match} />}
+        </div>
+    );
+}
+
+// ─── ReportScore ─────────────────────────────────────────────────────────────
+// After kick-off, while there's no result yet, players can tell the organiser
+// the final score. It only counts once the organiser confirms it.
+
+function ReportScore({ match }: { match: Match }) {
+    const [mine, setMine] = useState(match.my_suggestion ?? null);
+    const [open, setOpen] = useState(false);
+    const [scores, setScores] = useState({ a: mine?.a ?? 0, b: mine?.b ?? 0 });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const others = (match.suggested_results ?? []).reduce((sum, r) => sum + r.n, 0) - (mine ? 1 : 0);
+
+    const send = async () => {
+        setSaving(true);
+        setError(null);
+        const res = await fetch(`/api/matches/${match.id}/suggest-result`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ team_a_score: scores.a, team_b_score: scores.b }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) { setMine(data.my_suggestion); setOpen(false); }
+        else setError(data.error || 'Could not send the score. Please try again.');
+        setSaving(false);
+    };
+
+    return (
+        <div className="report-score">
+            {open ? (
+                <>
+                    <span className="report-score-label">Final score?</span>
+                    <ScoreStepper value={scores.a} onChange={v => setScores(s => ({ ...s, a: v }))} />
+                    <span aria-hidden="true" style={{ fontWeight: 700 }}>–</span>
+                    <ScoreStepper value={scores.b} onChange={v => setScores(s => ({ ...s, b: v }))} />
+                    <button className="btn btn-success btn-sm" onClick={send} disabled={saving}>{saving ? 'Sending…' : 'Send to organiser'}</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setOpen(false)}>Cancel</button>
+                </>
+            ) : mine ? (
+                <>
+                    <span>You reported <strong>{mine.a}–{mine.b}</strong>. Points arrive once the organiser confirms it.</span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { setScores(mine); setOpen(true); }}>Change</button>
+                </>
+            ) : (
+                <>
+                    <span>
+                        Match over? Tell the organiser the final score.
+                        {others > 0 && <> {plural(others, 'player has', 'players have')} already reported one.</>}
+                    </span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setOpen(true)}>Report final score</button>
+                </>
+            )}
+            {error && <div className="auth-error" role="alert" style={{ width: '100%' }}>{error}</div>}
         </div>
     );
 }

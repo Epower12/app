@@ -32,8 +32,8 @@ the fly by `lib/scoring.ts`. Points are never stored.
 
 | Table | What it holds | Key columns |
 |---|---|---|
-| `users` | Accounts (email/password or OAuth) | `role`: `user`, `premium` (can run leagues) or `admin`; `oauth_provider`; Stripe fields: `stripe_customer_id`, `subscription_status`, `subscription_plan`, `current_period_end` |
-| `tournaments` | Leagues | `created_by` (organiser), `join_code` (6 chars, used in invite links), `league_type` (`open` = anyone can join, `private` = code only), `is_active` (false = closed, predictions locked), `max_participants` (0 = unlimited), `race_bonus_config` (F1 bonus questions switched on) |
+| `users` | Accounts (email/password or OAuth) | `is_demo` (fictional demo player, see [DEMO.md](DEMO.md)), `role`: `user`, `premium` (can run leagues) or `admin`; `oauth_provider`; Stripe fields: `stripe_customer_id`, `subscription_status`, `subscription_plan`, `current_period_end` |
+| `tournaments` | Leagues | `created_by` (organiser), `join_code` (6 chars, used in invite links), `league_type` (`open` = anyone can join, `private` = code only), `is_active` (false = closed, predictions locked), `is_demo` (the demo league), `max_participants` (0 = unlimited), `race_bonus_config` (F1 bonus questions switched on) |
 | `tournament_participants` | Who is in which league | unique (`tournament_id`, `user_id`), `joined_at` |
 | `matches` | Fixtures in a league | `scheduled_time` (kick-off; predictions lock at this moment), `is_finished` + `team_a_score`/`team_b_score` (result), `match_type` (`score`, `series`, `race`), `series_format` (`BO1`/`BO3`/`BO5`), `is_playoff` (no draws), `source` (`manual`, `api`), `api_match_id`/`api_race_id` (the feed fixture it was imported from), `result_source` (`api` = filled in automatically, `manual` = organiser), `result_note` (something for the organiser to check), race results: `top10_result`, `pole_result`, `fastest_lap_result`, … , `is_season_finale` (×2 points) |
 | `predictions` | Score/series picks | unique (`match_id`, `user_id`); `team_a_score`, `team_b_score` |
@@ -46,6 +46,7 @@ the fly by `lib/scoring.ts`. Points are never stored.
 | Table | What it holds |
 |---|---|
 | `notifications` | In-app messages (e.g. "you scored 5 points"), `is_read` |
+| `result_suggestions` | Final scores players reported after a match (one per player per match), waiting for the organiser to confirm. See [RESULTS.md](RESULTS.md) |
 | `password_reset_tokens` | Hashed, expiring reset tokens (`token_hash`, `expires_at`, `used`) |
 | `api_leagues`, `api_matches`, `api_races` | Fixtures and results synced from API-Sports, the NHL API and Jolpica-F1, ready for organisers to import into a league. `api_races.result_rows` holds the full F1 classification. See [RESULTS.md](RESULTS.md) |
 | `news_items` | Cached sports news (created by `lib/news.ts`) |

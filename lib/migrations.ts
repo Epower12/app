@@ -355,6 +355,29 @@ export async function runMigrations() {
     await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS result_rows JSONB`);
     await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS pole_driver TEXT`);
     await run(`ALTER TABLE api_races ADD COLUMN IF NOT EXISTS pole_number TEXT`);
+
+    // api_matches.stage: 'preseason', 'regular' or 'playoffs' where the feed says so (NHL).
+    await run(`ALTER TABLE api_matches ADD COLUMN IF NOT EXISTS stage TEXT`);
+
+    // Demo league (lib/demo.ts): fictional players and their league are flagged so
+    // they can be told apart from real ones, left out of owner stats and removed in one go.
+    await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE`);
+    await run(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE`);
+
+    // Player-suggested results: after a match, members can tell the organiser the
+    // final score; the organiser confirms it with one tap on the Manage page.
+    await run(`
+        CREATE TABLE IF NOT EXISTS result_suggestions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            team_a_score INTEGER NOT NULL,
+            team_b_score INTEGER NOT NULL,
+            created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+            UNIQUE(match_id, user_id)
+        )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS idx_result_suggestions_match ON result_suggestions(match_id)`);
 }
 
 // One shared run per server process: the startup hook (instrumentation.ts) and

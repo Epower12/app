@@ -451,3 +451,27 @@
   letter-spacing: 0.04em;
   color: var(--text-muted);
 }
+
+/* Player-reported results (organiser confirms) */
+.app-page .suggested-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+}
+.app-page .suggested-others { color: var(--text-muted); }
+.app-page .report-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 1rem 1rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  background: var(--sky-soft);
+  color: #1e3a8a;
+  font-size: 0.85rem;
+}
+.app-page .report-score-label { font-weight: 700; }

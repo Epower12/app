@@ -1,4 +1,4 @@
-# Automatic results
+# Results: automatic, reported by players, or entered by hand
 
 Matches an organiser **imports** (Manage → Import fixtures) are linked to a
 fixture feed. The app fills in their results by itself, so players get their
@@ -31,6 +31,17 @@ tournament preset have no feed and still need the organiser to enter them.
   surname, so a list with just "Verstappen" works.
 - Players are notified only when someone predicted the match (no "no
   prediction" messages for old fixtures imported with their result).
+
+## Results reported by players
+
+For matches without a feed (added by hand or from a preset), and as a backup
+for imported ones: once a match has started and has no result, players see
+**Report final score** on the predictions page. Nothing is scored from a
+report on its own. On the Manage page the organiser sees
+"Players say 2–1 (3 players) · also 2–2 (1)" with a **Confirm 2–1** button,
+which enters the result as usual. The organiser gets one notification per
+match, on the first report. Races aren't included (their results have too
+many parts).
 
 ## How it runs
 
@@ -73,3 +84,16 @@ gcloud scheduler jobs create http fixture-sync-daily \
 Test it with `gcloud scheduler jobs run fixture-sync-daily --location=us-central1`.
 The response lists the sources it refreshed, plus `resultsApplied`
 (`filled`, `corrected`, `flagged`, `rescheduled`).
+
+## Formula 1: how results get in
+
+1. **Owner page → API Leagues:** choose *Formula 1 — Jolpica (free)*, enter the
+   season (e.g. 2026) and sync. This loads the calendar; no key needed.
+2. **Your F1 league → Manage → Import fixtures:** pick the races to add.
+   Add your drivers under the *Drivers* tab (surnames are enough).
+3. After each Grand Prix the 30-minute sync (or **Check for results now**)
+   fills in the Top 10 and the bonus answers. Only the safety car question is
+   left for you; the match shows a note until you add it.
+
+Sprints and qualifying sessions added by hand still need their results
+entered on the Manage page.

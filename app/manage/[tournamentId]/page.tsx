@@ -43,6 +43,8 @@ interface Match {
     result_source?: string | null;
     /** Something the organiser should look at (official score differs, postponed, …). */
     result_note?: string | null;
+    /** Final scores players reported, most common first. */
+    suggested_results?: { a: number; b: number; n: number }[] | null;
 }
 
 function raceResultToForm(m?: Match): RaceWeekendFormState {
@@ -466,6 +468,18 @@ function ManagePageInner() {
         setScoreLoading(false);
     };
 
+    // One tap: enter the score players reported as the result.
+    const confirmSuggested = async (m: Match, a: number, b: number) => {
+        if (!confirm(`Confirm ${m.team_a} ${a}–${b} ${m.team_b} as the final result?\n\nPoints are awarded straight away.`)) return;
+        const res = await fetch(`/api/matches/${m.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ team_a_score: a, team_b_score: b, is_finished: true }),
+        });
+        if (res.ok) fetchData();
+        else alert((await res.json().catch(() => ({})))?.error || 'The result was not saved. Please try again.');
+    };
+
     const deleteMatch = async (matchId: string) => {
         if (!confirm('Delete this match?\n\nEveryone\'s predictions for it are deleted too, and any points from it disappear from the table. This can\'t be undone.')) return;
         await fetch(`/api/matches/${matchId}`, { method: 'DELETE' });
@@ -536,8 +550,8 @@ function ManagePageInner() {
     const nowSec = Date.now() / 1000;
     const matchGroups = [
         { key: 'needs', title: 'Needs a result', help: hasImported
-            ? 'These have started. Imported matches fill in by themselves shortly after the final whistle; enter anything else yourself.'
-            : 'These have started. Enter the final score so everyone gets their points.',
+            ? 'These have started. Imported matches fill in by themselves shortly after the final whistle; for the rest, enter the score or confirm one your players reported.'
+            : 'These have started. Enter the final score, or confirm the one your players reported, so everyone gets their points.',
           items: matches.filter(m => !m.is_finished && m.scheduled_time <= nowSec) },
         { key: 'upcoming', title: 'Upcoming', help: 'Open for predictions until kick-off. You can still edit or delete them.',
           items: matches.filter(m => !m.is_finished && m.scheduled_time > nowSec) },
@@ -839,7 +853,19 @@ function ManagePageInner() {
                                                                                 ? <span className="status-chip status-chip-done">{(m.top10_result ?? []).slice(0, 3).join(' · ') || 'Entered'}</span>
                                                                                 : <span className="status-chip status-chip-done">{m.team_a_score} – {m.team_b_score}</span>
                                                                         ) : started ? (
-                                                                            <span className="status-chip status-chip-live">{m.source === 'api' ? 'Waiting for result' : 'Needs result'}</span>
+                                                                            <>
+                                                                                <span className="status-chip status-chip-live">{m.source === 'api' ? 'Waiting for result' : 'Needs result'}</span>
+                                                                                {m.match_type !== 'race' && m.suggested_results && m.suggested_results.length > 0 && (
+                                                                                    <div className="suggested-result">
+                                                                                        <span>Players say <strong>{m.suggested_results[0].a}–{m.suggested_results[0].b}</strong> ({plural(m.suggested_results[0].n, 'player', 'players')})
+                                                                                            {m.suggested_results.length > 1 && <span className="suggested-others"> · also {m.suggested_results.slice(1, 3).map(r => `${r.a}–${r.b} (${r.n})`).join(', ')}</span>}
+                                                                                        </span>
+                                                                                        <button className="btn btn-primary btn-sm" onClick={() => confirmSuggested(m, m.suggested_results![0].a, m.suggested_results![0].b)}>
+                                                                                            Confirm {m.suggested_results[0].a}–{m.suggested_results[0].b}
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </>
                                                                         ) : (
                                                                             <span className="status-chip status-chip-upcoming">Not started</span>
                                                                         )}

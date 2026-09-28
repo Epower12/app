@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { ensureMigrations } from '@/lib/migrations';
 import { resyncAllLeagues, resyncDueLeagues } from '@/lib/fixtureSync';
+import { topUpDemoLeague } from '@/lib/demo';
 
 /**
  * POST /api/fixtures/sync
@@ -42,11 +43,14 @@ async function handle(request: Request) {
         const full = new URL(request.url).searchParams.get('full') === '1';
         const { results, applied } = full ? await resyncAllLeagues() : await resyncDueLeagues();
         const matchesSynced = results.reduce((sum, r) => sum + r.matchesSynced, 0);
+        // Keep the demo league (if there is one) moving: next week's games and new picks.
+        const demo = await topUpDemoLeague().catch(err => ({ error: String(err?.message ?? err) }));
         return NextResponse.json({
             ok: true,
             leaguesSynced: results.length,
             matchesSynced,
             resultsApplied: applied,
+            demo,
             results,
             at: new Date().toISOString(),
         });

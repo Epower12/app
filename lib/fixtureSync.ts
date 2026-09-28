@@ -46,13 +46,13 @@ async function upsertNhlGames(league: DbApiLeague): Promise<number> {
 
     for (const g of games) {
         await db.query(
-            `INSERT INTO api_matches (api_league_id, external_id, home_team, away_team, match_time, status, home_score, away_score, synced_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, EXTRACT(EPOCH FROM NOW())::BIGINT)
+            `INSERT INTO api_matches (api_league_id, external_id, home_team, away_team, match_time, status, home_score, away_score, stage, synced_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, EXTRACT(EPOCH FROM NOW())::BIGINT)
              ON CONFLICT (api_league_id, external_id)
              DO UPDATE SET status = EXCLUDED.status, home_score = EXCLUDED.home_score,
                            away_score = EXCLUDED.away_score, match_time = EXCLUDED.match_time,
-                           synced_at = EXCLUDED.synced_at`,
-            [league.id, g.id, g.homeTeam, g.awayTeam, g.timestamp, g.status, g.homeScore, g.awayScore]
+                           stage = EXCLUDED.stage, synced_at = EXCLUDED.synced_at`,
+            [league.id, g.id, g.homeTeam, g.awayTeam, g.timestamp, g.status, g.homeScore, g.awayScore, g.stage]
         );
         upserted++;
     }
